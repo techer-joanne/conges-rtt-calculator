@@ -203,10 +203,7 @@ export default function Dashboard({
   const indemPct = restant > 0 ? Math.min(100, (indem / restant) * 100) : 0;
 
   return (
-    <div
-      className="dash-dark animate-fade-up rounded-2xl border border-white/[0.06] bg-[#0b1322] p-4 text-slate-200 shadow-glow sm:p-5"
-      style={{ backgroundImage: 'radial-gradient(900px 480px at 85% -12%, rgba(74,134,197,0.14), transparent 60%)' }}
-    >
+    <div className="dash-dark animate-fade-up text-slate-200">
       {/* En-tête */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>

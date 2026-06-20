@@ -3,8 +3,9 @@
 @tailwind utilities;
 
 /*
- * Jetons de thème shadcn/ui, calés sur la charte « Ville de Trappes »
- * (primaire = bleu trappes-600). Couleurs en HSL pour la convention shadcn.
+ * Jetons de thème shadcn/ui, calés sur la charte « Ville de Trappes ».
+ * L'application est servie en MODE SOMBRE (classe .dark sur <html>) ; les
+ * valeurs claires de :root servent de repli et au rendu d'impression.
  */
 @layer base {
   :root {
@@ -41,14 +42,12 @@
 
     --radius: 0.85rem;
 
-    /* Palette graphiques (donut / barres) — déclinaison Ville de Trappes */
     --chart-1: 212 52% 42%;
     --chart-2: 209 51% 53%;
     --chart-3: 211 45% 31%;
     --chart-4: 207 49% 67%;
     --chart-5: 214 47% 24%;
 
-    /* Sidebar — surface sombre & « marque » Ville de Trappes (proche trappes-950). */
     --sidebar-background: 213 52% 9%;
     --sidebar-foreground: 210 40% 92%;
     --sidebar-primary: 207 49% 67%;
@@ -57,6 +56,48 @@
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 213 40% 20%;
     --sidebar-ring: 212 52% 50%;
+  }
+
+  /* ----- Thème sombre « Ville de Trappes » (appliqué partout) ----- */
+  .dark {
+    --background: 219 47% 9%;
+    --foreground: 213 31% 91%;
+
+    --card: 219 45% 13%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 219 45% 15%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 209 58% 61%;
+    --primary-foreground: 219 47% 11%;
+
+    --secondary: 218 33% 18%;
+    --secondary-foreground: 213 31% 90%;
+
+    --muted: 218 33% 17%;
+    --muted-foreground: 214 20% 66%;
+
+    --accent: 216 38% 22%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 66% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 168 55% 46%;
+    --success-foreground: 219 47% 11%;
+
+    --border: 216 28% 22%;
+    --input: 216 28% 24%;
+    --ring: 209 55% 55%;
+
+    --chart-1: 209 55% 62%;
+    --chart-2: 172 66% 50%;
+    --chart-3: 207 49% 67%;
+    --chart-4: 199 70% 60%;
+    --chart-5: 213 40% 48%;
+
+    color-scheme: dark;
   }
 }
 
@@ -81,6 +122,14 @@
     background-attachment: fixed;
     min-height: 100vh;
   }
+
+  /* Fond sombre de l'application */
+  .dark body {
+    background:
+      radial-gradient(1100px 560px at 85% -12%, rgba(74, 134, 197, 0.14), transparent 60%),
+      radial-gradient(820px 460px at -8% -6%, rgba(45, 212, 191, 0.07), transparent 55%),
+      linear-gradient(180deg, #0a1120 0%, #0b1426 100%);
+  }
 }
 
 /* Range / slider stylé (réutilisé par la quotité éventuelle) */
@@ -104,9 +153,29 @@ input[type='range']::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-/* Impression : ne garder que les fiches de résultats, en propre. */
+/* Impression : forcer un rendu CLAIR et lisible (même en mode sombre). */
 @media print {
-  body {
+  .dark {
+    --background: 210 40% 98%;
+    --foreground: 215 50% 19%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 50% 19%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 50% 19%;
+    --primary: 212 52% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 213 45% 24%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 208 60% 94%;
+    --accent-foreground: 213 45% 24%;
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    color-scheme: light;
+  }
+  body,
+  .dark body {
     background: #fff !important;
   }
   .no-print {
@@ -117,24 +186,17 @@ input[type='range']::-webkit-slider-thumb {
     border-color: #d7e6f4 !important;
   }
 
-  /* Tableau de bord sombre → rendu clair et lisible à l'impression. */
-  .dash-dark {
-    background: #fff !important;
-    box-shadow: none !important;
-    background-image: none !important;
-  }
-  .dash-dark,
-  .dash-dark * {
-    color: #16294d !important;
-    border-color: #d7e6f4 !important;
-  }
+  /* Surfaces sombres « codées en dur » du tableau de bord → claires. */
   .dash-card,
   .dash-hero {
     background: #fff !important;
     background-image: none !important;
     box-shadow: none !important;
-  }
-  .dash-hero {
     border: 1px solid #d7e6f4 !important;
+  }
+  .dash-dark,
+  .dash-dark * {
+    color: #16294d !important;
+    border-color: #d7e6f4 !important;
   }
 }

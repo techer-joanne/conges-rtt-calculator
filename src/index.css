@@ -116,4 +116,25 @@ input[type='range']::-webkit-slider-thumb {
     box-shadow: none !important;
     border-color: #d7e6f4 !important;
   }
+
+  /* Tableau de bord sombre → rendu clair et lisible à l'impression. */
+  .dash-dark {
+    background: #fff !important;
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+  .dash-dark,
+  .dash-dark * {
+    color: #16294d !important;
+    border-color: #d7e6f4 !important;
+  }
+  .dash-card,
+  .dash-hero {
+    background: #fff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+  .dash-hero {
+    border: 1px solid #d7e6f4 !important;
+  }
 }

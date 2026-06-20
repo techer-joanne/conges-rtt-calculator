@@ -146,12 +146,6 @@ export default function Dashboard({
   ];
   const donutTotal = results.congesAnnuels + results.rttReelles;
 
-  // Impact maladie : part des RTT conservée après réduction maladie.
-  const pror = results.rttProratises;
-  const reel = results.rttReelles;
-  const reelPct = pror > 0 ? Math.min(100, (reel / pror) * 100) : 0;
-  const deltaMal = Math.max(0, pror - reel);
-
   // Solde au départ : acquis = pris + restant.
   const acquis = Math.max(0, results.caAcquis);
   const pris = Math.max(0, results.congesDejaPris);
@@ -248,33 +242,11 @@ export default function Dashboard({
               <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
                 Analyse détaillée
               </CardTitle>
-              <p className="text-xs font-medium text-muted-foreground">Maladie · solde · indemnisation</p>
+              <p className="text-xs font-medium text-muted-foreground">Solde au départ · indemnisation</p>
             </div>
           </CardHeader>
           <CardContent>
             <div className="divide-y divide-border">
-              {/* Impact maladie */}
-              <AnalysisRow
-                icon={Activity}
-                title="Impact de la maladie"
-                sub="RTT proratisés → réelles"
-                value={`${fmtJours(pror)} → ${fmtJours(reel)} j`}
-              >
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${reelPct}%` }} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {pror > 0 ? `${fmtPct(reel / pror, 0)} des RTT conservées` : 'aucun RTT'}
-                  </span>
-                  {deltaMal > 0 ? (
-                    <Badge variant="destructive">− {fmtJours(deltaMal)} j</Badge>
-                  ) : (
-                    <Badge variant="success">Aucun impact</Badge>
-                  )}
-                </div>
-              </AnalysisRow>
-
               {/* Solde au départ */}
               <AnalysisRow
                 icon={Wallet}

@@ -34,7 +34,7 @@ export default function InputForm({
   results: Results;
 }) {
   return (
-    <Card>
+    <Card className="no-print">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base font-bold uppercase tracking-wide text-secondary-foreground">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">

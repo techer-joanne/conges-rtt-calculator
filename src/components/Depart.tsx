@@ -182,7 +182,7 @@ export default function Depart({
         </div>
 
         {/* Composition de la rémunération de référence */}
-        <div className="space-y-3 px-5 py-4">
+        <div className="no-print space-y-3 px-5 py-4">
           <p className="text-xs font-semibold text-secondary-foreground">
             Composition de la rémunération brute de référence (arrêté du 21/06/2025) :
           </p>

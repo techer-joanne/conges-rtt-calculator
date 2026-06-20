@@ -155,6 +155,24 @@ input[type='range']::-webkit-slider-thumb {
 
 /* Impression : forcer un rendu CLAIR et lisible (même en mode sombre). */
 @media print {
+  /* Format A4 portrait + compaction pour tenir sur UNE seule page. */
+  @page {
+    size: A4 portrait;
+    margin: 9mm;
+  }
+  html {
+    font-size: 10.5px; /* réduit proportionnellement texte + espacements (rem) */
+  }
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .print-clean,
+  .dash-card,
+  .dash-hero {
+    break-inside: avoid;
+  }
+
   .dark {
     --background: 210 40% 98%;
     --foreground: 215 50% 19%;

@@ -355,7 +355,7 @@ export default function Annualisation({
       </Card>
 
       {/* Note méthodo */}
-      <Alert variant="warning">
+      <Alert variant="warning" className="no-print">
         <AlertTriangle />
         <AlertDescription>
           Estimation indicative (méthode CDG, décret n° 85-1250 — congés décomptés en jours). Le traitement des

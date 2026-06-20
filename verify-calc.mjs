@@ -28,6 +28,12 @@ await build({
 const { computeEntite, parseCsv, parseMontant, DEMO_JUIN } = await import(pathToFileURL(outCt).href);
 const ctVille = computeEntite('VILLE', DEMO_JUIN.VILLE);
 const ctCcas = computeEntite('CCAS', DEMO_JUIN.CCAS);
+// Pire écart absolu J..O sur l'ensemble des tiers (doit valoir 0 sur juin 2026).
+const pireEcart = (res) =>
+  res.lignes.reduce((m, l) => {
+    const e = Object.values(l.ecarts ?? {}).reduce((mm, x) => Math.max(mm, Math.abs(x)), 0);
+    return Math.max(m, e);
+  }, 0);
 const ctCsv = parseCsv(
   'ENTITE,CODE_TIERS,LIBELLE,COLONNE,VALEUR,CONTROLE\n' +
     'VILLE,11788,URSSAF,C,925561.32,1\n' +
@@ -132,17 +138,34 @@ const checks = [
   ['annuFer · heures déduites (2×4)', round2(annuFer.heuresDeduites), 8],
   ['annuFer · heures réelles (712)', round2(annuFer.heuresReelles), 712],
   ['annuFer · quotité inchangée %', Math.round(annuFer.quotitePaie * 1000) / 10, 44.8],
-  // Contrôle Tiers — exemple juin 2026 (matrice par Code Tiers)
+  // Contrôle Tiers — exemple juin 2026 (matrice par Code Tiers, écarts J..O = 0)
   ['CT Ville · statut', ctVille.statut, 'ok'],
   ['CT Ville · 0 anomalie', ctVille.nbAnomalies, 0],
+  ['CT Ville · tous écarts J..O = 0', round2(pireEcart(ctVille)), 0],
   ['CT Ville · titre arrondi PAS', ctVille.titreArrondi, true],
   ['CT Ville · écart arrondi PAS', round2(ctVille.pasEcartArrondi), 0.29],
-  ['CT Ville · total CIRIL', round2(ctVille.totalCiril), 3406242.95],
-  ['CT Ville · réconciliation budgétaire', ctVille.reconciliations.find((r) => r.id === 'budget').statut, 'ok'],
-  ['CT Ville · réconciliation bloc 81', ctVille.reconciliations.find((r) => r.id === 'bloc81').statut, 'ok'],
-  ['CT Ville · réconciliation PAS', ctVille.reconciliations.find((r) => r.id === 'pas').statut, 'ok'],
+  ['CT Ville · total CIRIL (C)', round2(ctVille.totalCiril), 3406242.95],
+  ['CT Ville · total état charges (D)', round2(ctVille.totalEtatCharges), 3349982.95],
+  ['CT Ville · prélèvement PAS (E)', round2(ctVille.totalPrelevement), 56260.29],
+  ['CT Ville · PAIE', round2(ctVille.totalPaie), 1906259.23],
+  ['CT Ville · CHARGES', round2(ctVille.totalCharges), 1499983.72],
+  ['CT Ville · bouclage = 0', round2(ctVille.bouclage), 0],
+  ['CT Ville · URSSAF bloc 81', round2(ctVille.urssaf), 925561.32],
+  ['CT Ville · réco paie+charges', ctVille.reconciliations.find((r) => r.id === 'paie-charges').statut, 'ok'],
+  ['CT Ville · réco budgétaire=charges+PAS', ctVille.reconciliations.find((r) => r.id === 'budget-charges').statut, 'ok'],
+  ['CT Ville · réco URSSAF', ctVille.reconciliations.find((r) => r.id === 'urssaf').statut, 'ok'],
+  ['CT Ville · réco paies', ctVille.reconciliations.find((r) => r.id === 'paies').statut, 'ok'],
+  ['CT Ville · réco PAS', ctVille.reconciliations.find((r) => r.id === 'pas').statut, 'ok'],
   ['CT CCAS · statut équilibrée', ctCcas.statut, 'ok'],
-  ['CT CCAS · pas de titre arrondi', ctCcas.titreArrondi, false],
+  ['CT CCAS · 0 anomalie', ctCcas.nbAnomalies, 0],
+  ['CT CCAS · tous écarts J..O = 0', round2(pireEcart(ctCcas)), 0],
+  ['CT CCAS · total CIRIL (C)', round2(ctCcas.totalCiril), 31218.03],
+  ['CT CCAS · total état charges (D)', round2(ctCcas.totalEtatCharges), 30451.03],
+  ['CT CCAS · PAIE', round2(ctCcas.totalPaie), 16446.91],
+  ['CT CCAS · CHARGES', round2(ctCcas.totalCharges), 14771.12],
+  ['CT CCAS · URSSAF bloc 81', round2(ctCcas.urssaf), 8015.37],
+  ['CT CCAS · titre arrondi (0,08)', ctCcas.titreArrondi, true],
+  ['CT CCAS · réco URSSAF', ctCcas.reconciliations.find((r) => r.id === 'urssaf').statut, 'ok'],
   // Import CSV (format compagnon)
   ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
   ['CT parseCsv · tier URSSAF colonne C', ctTierUrssaf.valeurs.C, 925561.32],

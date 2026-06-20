@@ -11,6 +11,8 @@ import {
   Landmark,
   ShieldCheck,
   Info,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { fmtEuro } from '../lib/calc';
 import {
@@ -29,13 +31,25 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-const STORAGE_KEY = 'conges-rtt-trappes:ct:v2';
+const STORAGE_KEY = 'conges-rtt-trappes:ct:v3';
 const NUM = "font-['Space_Grotesk'] tabular-nums";
 const ENTITES: EntiteKey[] = ['VILLE', 'CCAS'];
 const ENTITE_META: Record<EntiteKey, { label: string; code: string; icon: typeof Building2 }> = {
   VILLE: { label: 'Ville', code: '001', icon: Building2 },
   CCAS: { label: 'CCAS', code: '004', icon: Landmark },
+};
+const CTRL_NOMS: Record<number, string> = {
+  1: 'Génération budgétaire',
+  2: 'État des charges',
+  3: 'État charges URSSAF',
+  4: 'DSN bordereau 22/23',
+  5: 'Paies numéraires',
+  6: 'DSN bloc 81',
+  7: 'DSN bloc 50',
+  8: 'Décompte du PAS',
+  9: 'Journal RUB 1691/94/97',
 };
 
 const fmtNum = (v?: number) =>
@@ -72,6 +86,8 @@ function loadData(): Record<EntiteKey, EntiteData> {
   return DEMO_JUIN;
 }
 
+type LogLine = { name: string; entite: EntiteKey | '?'; controle: number };
+
 /* --------------------------- Synthèse --------------------------- */
 
 function Kpi({ label, value }: { label: string; value: string }) {
@@ -101,10 +117,10 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
         <StatutBadge statut={res.statut} />
       </CardHeader>
       <CardContent className="space-y-3 p-4">
-        {/* Réconciliations clés */}
+        {/* 5 réconciliations clés (BRIEF §8) */}
         <div className="space-y-1">
-          {res.reconciliations.length === 0 && (
-            <p className="text-xs italic text-muted-foreground">Importez un CSV pour voir les réconciliations.</p>
+          {!res.renseigne && (
+            <p className="text-xs italic text-muted-foreground">Déposez les fichiers CIRIL pour voir les réconciliations.</p>
           )}
           {res.reconciliations.map((r) => (
             <div key={r.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 odd:bg-muted/30">
@@ -119,7 +135,7 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
                 className={cn(
                   'shrink-0 text-xs font-bold',
                   NUM,
-                  r.statut === 'ko' ? 'text-destructive' : 'text-success',
+                  r.statut === 'ko' ? 'text-destructive' : r.statut === 'na' ? 'text-muted-foreground' : 'text-success',
                 )}
               >
                 {r.ecart === undefined ? '—' : `± ${fmtEuro(r.ecart)}`}
@@ -129,9 +145,12 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
         </div>
 
         {/* Chiffres clés */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Kpi label="Total CIRIL" value={res.totalCiril === undefined ? '—' : fmtEuro(res.totalCiril, 0)} />
           <Kpi label="Paie" value={res.totalPaie === undefined ? '—' : fmtEuro(res.totalPaie, 0)} />
+          <Kpi label="Charges" value={res.totalCharges === undefined ? '—' : fmtEuro(res.totalCharges, 0)} />
+          <Kpi label="URSSAF" value={res.urssaf === undefined ? '—' : fmtEuro(res.urssaf, 0)} />
+          <Kpi label="PAS" value={res.pas === undefined ? '—' : fmtEuro(res.pas)} />
           <Kpi label="Anomalies" value={String(res.nbAnomalies)} />
         </div>
 
@@ -148,6 +167,48 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
 
 /* --------------------------- Détail (matrice) --------------------------- */
 
+const ECARTS_META: { key: 'J' | 'K' | 'L' | 'M' | 'N' | 'O'; label: string }[] = [
+  { key: 'J', label: 'J = C − D (budgétaire vs état des charges)' },
+  { key: 'K', label: 'K = G − C (bloc 81 vs budgétaire)' },
+  { key: 'L', label: 'L = G − D (bloc 81 vs état des charges)' },
+  { key: 'M', label: 'M = D + H − F (PAS)' },
+  { key: 'N', label: 'N = I − C (trésorerie vs budgétaire)' },
+  { key: 'O', label: 'O = I − D (trésorerie vs état des charges)' },
+];
+
+function EcartCell({ res }: { res: EntiteResultat['lignes'][number] }) {
+  const keys = ECARTS_META.filter((m) => res.ecarts[m.key] !== undefined);
+  if (keys.length === 0) {
+    return <span className="text-muted-foreground/40">·</span>;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            'cursor-help',
+            res.statut === 'ko' ? 'text-destructive' : res.arrondi ? 'text-amber-300' : 'text-muted-foreground',
+          )}
+        >
+          {res.ecart === undefined ? '·' : fmtNum(res.ecart)}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="space-y-0.5">
+          {keys.map((m) => (
+            <div key={m.key} className="flex justify-between gap-3">
+              <span>{m.label}</span>
+              <span className={cn(NUM, Math.abs(res.ecarts[m.key]!) > 0.01 ? 'text-amber-300' : '')}>
+                {fmtNum(res.ecarts[m.key])}
+              </span>
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function DetailCard({ res }: { res: EntiteResultat }) {
   const meta = ENTITE_META[res.entite];
   return (
@@ -161,11 +222,7 @@ function DetailCard({ res }: { res: EntiteResultat }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {res.lignes.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm italic text-muted-foreground">
-            Aucune donnée — glissez le CSV de l'outil compagnon.
-          </p>
-        ) : (
+        <div className="w-full overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -175,47 +232,48 @@ function DetailCard({ res }: { res: EntiteResultat }) {
                     {c.court}
                   </TableHead>
                 ))}
-                <TableHead className="text-right">Écart</TableHead>
+                <TableHead className="text-right" title="Écart J..O — survolez pour le détail">
+                  Écart
+                </TableHead>
                 <TableHead className="w-10 text-center">État</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {res.lignes.map((l) => (
-                <TableRow key={l.code}>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="font-semibold text-foreground">{l.libelle || l.code}</span>
-                    <span className="ml-1.5 text-[10px] text-muted-foreground">{l.code}</span>
-                  </TableCell>
-                  {COLONNES.map((c) => (
-                    <TableCell
-                      key={c.key}
-                      className={cn(
-                        'text-right text-xs',
-                        NUM,
-                        l.valeurs[c.key] === undefined ? 'text-muted-foreground/40' : 'text-foreground',
-                      )}
-                    >
-                      {fmtNum(l.valeurs[c.key])}
+              {res.lignes.map((l) => {
+                const vide = COLONNES.every((c) => l.valeurs[c.key] === undefined);
+                return (
+                  <TableRow key={l.code} className={cn(vide && 'opacity-50')}>
+                    <TableCell className="whitespace-nowrap">
+                      <span className="font-semibold text-foreground">{l.libelle || l.code}</span>
+                      <span className="ml-1.5 text-[10px] text-muted-foreground">{l.code}</span>
                     </TableCell>
-                  ))}
-                  <TableCell
-                    className={cn(
-                      'text-right text-xs font-bold',
-                      NUM,
-                      l.statut === 'ko' ? 'text-destructive' : l.arrondi ? 'text-amber-300' : 'text-muted-foreground',
-                    )}
-                  >
-                    {l.ecart === undefined ? '·' : fmtNum(l.ecart)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {l.arrondi ? (
-                      <AlertTriangle className="mx-auto h-4 w-4 text-amber-300" />
-                    ) : (
-                      <StatutIcon statut={l.statut} className="mx-auto h-4 w-4" />
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    {COLONNES.map((c) => (
+                      <TableCell
+                        key={c.key}
+                        className={cn(
+                          'text-right text-xs',
+                          NUM,
+                          l.valeurs[c.key] === undefined ? 'text-muted-foreground/40' : 'text-foreground',
+                        )}
+                      >
+                        {fmtNum(l.valeurs[c.key])}
+                      </TableCell>
+                    ))}
+                    <TableCell className={cn('text-right text-xs font-bold', NUM)}>
+                      <EcartCell res={l} />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {l.arrondi ? (
+                        <AlertTriangle className="mx-auto h-4 w-4 text-amber-300" />
+                      ) : (
+                        <StatutIcon statut={l.statut} className="mx-auto h-4 w-4" />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+
+              {/* TOTAL FICHIER CIRIL */}
               {Object.keys(res.totaux).length > 0 && (
                 <TableRow className="border-t-2 border-border bg-muted/40 font-bold hover:bg-muted/40">
                   <TableCell className="whitespace-nowrap text-foreground">Total fichier CIRIL</TableCell>
@@ -228,9 +286,25 @@ function DetailCard({ res }: { res: EntiteResultat }) {
                   <TableCell />
                 </TableRow>
               )}
+
+              {/* Bouclage PAIE + CHARGES = budgétaire */}
+              {res.totalPaie !== undefined && res.totalCharges !== undefined && (
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground" colSpan={COLONNES.length + 1}>
+                    Bouclage : Paie ({fmtNum(res.totalPaie)}) + Charges ({fmtNum(res.totalCharges)}) ={' '}
+                    <span className={cn('font-semibold', NUM)}>{fmtNum(res.totalCiril)}</span> = budgétaire
+                    {res.bouclage !== undefined && (
+                      <span className="ml-1 text-muted-foreground">· écart {fmtNum(res.bouclage)}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <StatutIcon statut={res.bouclage === undefined ? 'na' : res.bouclage <= 0.01 ? 'ok' : 'ko'} className="mx-auto h-4 w-4" />
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -243,7 +317,11 @@ export default function ControleTiers() {
   const [source, setSource] = useState('Exemple — juin 2026');
   const [info, setInfo] = useState<{ kind: 'ok' | 'warn'; text: string } | null>(null);
   const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState<LogLine[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const csvRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
@@ -255,8 +333,42 @@ export default function ControleTiers() {
 
   const results = useMemo(() => ENTITES.map((e) => computeEntite(e, data[e] ?? { tiers: [], totaux: {} })), [data]);
 
-  async function handleFiles(files: FileList | null) {
-    const f = files?.[0];
+  /** Chemin PRINCIPAL : lecture des fichiers bruts CIRIL (PDF / xlsx / xlsm / slk). */
+  async function handleRawFiles(files: FileList | null) {
+    const arr = files ? Array.from(files) : [];
+    if (arr.length === 0) return;
+    // Un dépôt 100 % CSV ⇒ on bascule sur l'import CSV (chemin secondaire).
+    if (arr.every((f) => f.name.toLowerCase().endsWith('.csv'))) {
+      return handleCsvFile(arr[0]);
+    }
+    setBusy(true);
+    setInfo(null);
+    try {
+      // Import paresseux : ctExtract charge pdf.js / xlsx à la demande (jamais en SSR).
+      const { aggregate } = await import('../lib/ctExtract');
+      const { data: parsed, log: logLines, errors: errs } = await aggregate(arr);
+      setLog(logLines);
+      setErrors(errs);
+      const nbVal = (Object.values(parsed) as EntiteData[]).reduce((n, ed) => n + ed.tiers.length, 0);
+      if (nbVal === 0) {
+        setInfo({
+          kind: 'warn',
+          text: 'Aucune valeur extraite — vérifiez que les fichiers sont bien les éditions CIRIL attendues.',
+        });
+      } else {
+        setData(parsed);
+        setSource(`${arr.length} fichier(s) CIRIL`);
+        setInfo({ kind: 'ok', text: `${nbVal} ligne(s) de tiers extraite(s) de ${arr.length} fichier(s).` });
+      }
+    } catch (e) {
+      setInfo({ kind: 'warn', text: `Lecture impossible : ${(e as Error).message?.slice(0, 120) ?? 'erreur'}` });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Chemin SECONDAIRE : import du CSV compagnon. */
+  async function handleCsvFile(f?: File | null) {
     if (!f) return;
     try {
       const text = await f.text();
@@ -265,14 +377,16 @@ export default function ControleTiers() {
       if (Object.keys(parsed).length === 0) {
         return setInfo({
           kind: 'warn',
-          text: `Aucune donnée reconnue (${lignesIgnorees} ligne(s) ignorée(s)). Format attendu : ENTITE, CODE_TIERS, LIBELLE, COLONNE, VALEUR.`,
+          text: `Aucune donnée reconnue (${lignesIgnorees} ligne(s) ignorée(s)).`,
         });
       }
       setData((prev) => ({ ...emptyData(), ...prev, ...parsed }));
+      setLog([]);
+      setErrors([]);
       setSource(f.name);
-      setInfo({ kind: 'ok', text: `${lignesReconnues} valeur(s) importée(s) · ${lignesIgnorees} ignorée(s).` });
+      setInfo({ kind: 'ok', text: `${lignesReconnues} valeur(s) importée(s) du CSV · ${lignesIgnorees} ignorée(s).` });
     } catch {
-      setInfo({ kind: 'warn', text: 'Lecture du fichier impossible.' });
+      setInfo({ kind: 'warn', text: 'Lecture du CSV impossible.' });
     }
   }
 
@@ -289,6 +403,8 @@ export default function ControleTiers() {
   function resetDemo() {
     setData(DEMO_JUIN);
     setSource('Exemple — juin 2026');
+    setLog([]);
+    setErrors([]);
     setInfo(null);
   }
 
@@ -303,8 +419,11 @@ export default function ControleTiers() {
           </p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => inputRef.current?.click()}>
-            <Upload className="h-4 w-4" /> Importer un CSV
+          <Button variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload className="h-4 w-4" /> Lire des fichiers CIRIL
+          </Button>
+          <Button variant="ghost" onClick={() => csvRef.current?.click()}>
+            <FileText className="h-4 w-4" /> Importer un CSV
           </Button>
           <Button variant="ghost" onClick={downloadModele}>
             <FileDown className="h-4 w-4" /> Modèle CSV
@@ -312,11 +431,19 @@ export default function ControleTiers() {
           <Button variant="ghost" onClick={resetDemo}>
             <RotateCcw className="h-4 w-4" /> Exemple
           </Button>
-          <input ref={inputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept=".pdf,.xlsx,.xlsm,.slk,.csv"
+            className="hidden"
+            onChange={(e) => handleRawFiles(e.target.files)}
+          />
+          <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => handleCsvFile(e.target.files?.[0])} />
         </div>
       </div>
 
-      {/* Zone de dépôt */}
+      {/* Zone de dépôt (fichiers bruts) */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -326,21 +453,57 @@ export default function ControleTiers() {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          handleFiles(e.dataTransfer.files);
+          handleRawFiles(e.dataTransfer.files);
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !busy && fileRef.current?.click()}
         className={cn(
           'no-print flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors',
           dragging ? 'border-primary bg-primary/10' : 'border-border bg-card/40 hover:border-primary/50',
+          busy && 'pointer-events-none opacity-70',
         )}
       >
-        <Upload className="h-5 w-5 text-primary" />
-        <p className="text-sm font-semibold text-foreground">Glissez-déposez le CSV de l'outil compagnon</p>
-        <p className="text-xs text-muted-foreground">(« import_controle_tiers.csv ») — ou cliquez pour parcourir</p>
+        {busy ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <Upload className="h-5 w-5 text-primary" />}
+        <p className="text-sm font-semibold text-foreground">
+          {busy ? 'Lecture en cours…' : 'Glissez-déposez les éditions CIRIL (PDF, xlsx, xlsm, slk)'}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Les 9 contrôles sont reconnus par leur contenu — lecture 100 % locale (aucun envoi serveur).
+        </p>
         {info && (
           <p className={cn('mt-1 text-xs font-medium', info.kind === 'ok' ? 'text-success' : 'text-amber-300')}>{info.text}</p>
         )}
       </div>
+
+      {/* Journal de détection + erreurs */}
+      {(log.length > 0 || errors.length > 0) && (
+        <div className="no-print rounded-lg border border-border bg-card/50 p-3 text-xs">
+          {log.length > 0 && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {log.map((l, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  <Badge variant={l.entite === '?' ? 'secondary' : 'outline'} className="px-1.5 py-0 text-[10px]">
+                    {l.entite}
+                  </Badge>
+                  <span className="text-muted-foreground">
+                    {l.controle ? `contrôle ${l.controle} (${CTRL_NOMS[l.controle]})` : 'non reconnu'}
+                  </span>
+                  <span className="text-muted-foreground/60">←</span>
+                  <span className="font-medium text-foreground">{l.name}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          {errors.length > 0 && (
+            <ul className="mt-2 space-y-0.5 border-t border-border pt-2 text-amber-300">
+              {errors.map((e, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {e}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Synthèse */}
       <div>
@@ -373,9 +536,10 @@ export default function ControleTiers() {
       <div className="flex items-start gap-2 rounded-lg border border-border bg-card/50 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         <span>
-          Vue de synthèse : l'extraction des PDF/CIRIL et la production du CSV restent assurées par l'outil compagnon.
-          Rapprochement par <strong>Code Tiers</strong> (un tiers = une ligne, colonnes C→I). L'écart de centimes sur le
-          PAS est attendu (→ titre d'arrondi). Régul. bloc 56 et n° de bordereau : saisie manuelle dans CIRIL.
+          Lecture 100 % locale des éditions CIRIL (PDF via pdf.js · tableurs via SheetJS). Chaque fichier est identifié{' '}
+          <strong>par son contenu</strong>, jamais par son nom. Rapprochement par <strong>Code Tiers</strong> (un tiers =
+          une ligne, colonnes C→I, écarts J→O). L'écart de centimes sur le PAS est attendu (→ titre d'arrondi, jamais une
+          anomalie). Régul. bloc 56 et n° de bordereau : saisie manuelle dans CIRIL.
         </span>
       </div>
     </div>

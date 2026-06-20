@@ -33,12 +33,16 @@ export default function AppSidebar({
     <Sidebar collapsible="icon" className="no-print">
       <SidebarHeader>
         <div className="flex items-center gap-2.5 px-1 py-1.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <CalendarCheck2 className="h-5 w-5" strokeWidth={2.25} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-trappes-300 via-trappes-500 to-trappes-700 text-white shadow-md ring-1 ring-inset ring-white/25">
+            <CalendarCheck2 className="h-5 w-5" strokeWidth={2.5} />
           </div>
           <div className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-sm font-bold text-sidebar-foreground">Congés &amp; RTT</span>
-            <span className="truncate text-xs text-sidebar-foreground/70">Ville de Trappes — DRH</span>
+            <span className="truncate text-sm font-bold tracking-tight text-sidebar-foreground">
+              Congés &amp; RTT
+            </span>
+            <span className="truncate text-[11px] font-medium uppercase tracking-wide text-sidebar-foreground/60">
+              Ville de Trappes — DRH
+            </span>
           </div>
         </div>
       </SidebarHeader>

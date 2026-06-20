@@ -2,40 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+/*
+ * Jetons de thème shadcn/ui, calés sur la charte « Ville de Trappes »
+ * (primaire = bleu trappes-600). Couleurs en HSL pour la convention shadcn.
+ */
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 215 50% 19%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 50% 19%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 50% 19%;
+
+    --primary: 212 52% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 213 45% 24%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 208 60% 94%;
+    --accent-foreground: 213 45% 24%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 56% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 212 52% 42%;
+
+    --radius: 0.85rem;
+
+    /* Palette graphiques (donut / barres) — déclinaison Ville de Trappes */
+    --chart-1: 212 52% 42%;
+    --chart-2: 209 51% 53%;
+    --chart-3: 211 45% 31%;
+    --chart-4: 207 49% 67%;
+    --chart-5: 214 47% 24%;
+  }
 }
 
-html {
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: hsl(var(--foreground));
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(74, 134, 197, 0.16), transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, rgba(38, 75, 120, 0.12), transparent 55%),
+      linear-gradient(180deg, #eef4fb 0%, #f6fafd 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
 }
 
-body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(74, 134, 197, 0.16), transparent 60%),
-    radial-gradient(900px 500px at -10% 0%, rgba(38, 75, 120, 0.12), transparent 55%),
-    linear-gradient(180deg, #eef4fb 0%, #f6fafd 100%);
-  background-attachment: fixed;
-  color: #16294d;
-  min-height: 100vh;
-}
-
-/* Champ de saisie homogène */
-.field-input {
-  @apply w-full rounded-xl border border-trappes-200 bg-white px-3.5 py-2.5 text-[15px] font-semibold
-         text-trappes-900 shadow-sm outline-none transition
-         placeholder:font-normal placeholder:text-trappes-400
-         focus:border-trappes-500 focus:ring-4 focus:ring-trappes-500/15;
-}
-
-.field-label {
-  @apply mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-trappes-700;
-}
-
-/* Range / slider stylé */
+/* Range / slider stylé (réutilisé par la quotité éventuelle) */
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
@@ -54,36 +92,9 @@ input[type='range']::-webkit-slider-thumb {
   border: 3px solid #3367a3;
   box-shadow: 0 2px 6px rgba(30, 58, 95, 0.35);
   cursor: pointer;
-  transition: transform 0.12s ease;
-}
-input[type='range']::-webkit-slider-thumb:hover {
-  transform: scale(1.12);
-}
-input[type='range']::-moz-range-thumb {
-  height: 20px;
-  width: 20px;
-  border-radius: 50%;
-  background: #fff;
-  border: 3px solid #3367a3;
-  box-shadow: 0 2px 6px rgba(30, 58, 95, 0.35);
-  cursor: pointer;
 }
 
-/* Tooltip natif au survol de l'icône d'aide */
-.tip {
-  @apply relative inline-flex;
-}
-.tip > .tip-body {
-  @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-60 -translate-x-1/2
-         rounded-lg bg-trappes-900 px-3 py-2 text-xs font-medium leading-snug text-white
-         opacity-0 shadow-xl transition-opacity duration-150;
-}
-.tip:hover > .tip-body,
-.tip:focus-within > .tip-body {
-  @apply opacity-100;
-}
-
-/* Impression : ne garder que la fiche de résultats, en propre. */
+/* Impression : ne garder que les fiches de résultats, en propre. */
 @media print {
   body {
     background: #fff !important;

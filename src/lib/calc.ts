@@ -29,6 +29,11 @@ export const DIVISEUR_PRORATA = 365; // jours / an (Barèmes!B16)
 export const PLAFOND_INDEMNISATION_JOURS = 20; // 4 semaines × 5 j (× quotité) — décret 2025-564
 export const DIVISEUR_INDEMNITE = 250; // (rém. mensuelle brute × 12) ÷ 250 = indemnité/jour
 
+// ---- Annualisation du temps de travail (cahier des charges DRH / méthode CDG) ----
+export const DUREE_LEGALE_ANNUELLE = 1607; // heures/an pour un temps plein (journée de solidarité incluse)
+export const HEURES_HEBDO_TEMPS_PLEIN = 35; // base hebdomadaire d'un temps plein
+export const JOURS_OUVRES_SEMAINE = 5; // jours travaillés / semaine (conversion heures ↔ jours)
+
 export type SocleKey = '35' | '37' | '37.5' | '38' | '39' | 'annu';
 
 /** Socles disponibles (colonnes de la feuille « Barèmes »). */
@@ -219,6 +224,106 @@ export function computeResults(input: Inputs): Results {
   };
 }
 
+/* --------------------------- Annualisation --------------------------- */
+/**
+ * Calcul de l'annualisation du temps de travail (cahier des charges DRH,
+ * méthode des centres de gestion — ex. CDG27).
+ *
+ *  - X (heures annuelles travaillées) = heures hebdo × nb de semaines travaillées
+ *  - Équivalent hebdomadaire annualisé = (X × 35) ÷ 1607
+ *  - Quotité de paie                   = équivalent ÷ 35 = X ÷ 1607
+ *  - Congés annuels                    = ROUND(25 × quotité × prorata) — jours ouvrés
+ *  - Volume de référence (temps plein) = 1607 × prorata
+ *  - Contrôle de cohérence             = heures réelles − volume de référence
+ *
+ * Les agents annualisés n'ont pas de RTT (le temps non travaillé prend la forme
+ * de jours non travaillés planifiés). Vérifiable avec l'exemple ATSEM CDG27 :
+ *   20 h × 36 semaines = 720 h → équivalent 15,68 h/sem · quotité 44,8 % · CA 11 j.
+ */
+export interface AnnualisationInputs {
+  nom: string;
+  heuresHebdo: number; // heures travaillées par semaine en période travaillée
+  nbSemaines: number; // nombre de semaines travaillées sur l'année
+  dateDebut: string; // période (facultative) si année incomplète — ISO yyyy-mm-dd
+  dateFin: string;
+  joursFeries: number; // jours fériés tombant un jour travaillé (option)
+  joursMaladie: number; // jours d'absence maladie (option)
+}
+
+export interface AnnualisationResults {
+  heuresAnnuelles: number; // X = heures hebdo × nb semaines (planifié)
+  heuresParJour: number; // heures hebdo ÷ 5
+  heuresDeduites: number; // (fériés + maladie) × heures/jour
+  heuresReelles: number; // X − déductions (≥ 0)
+  equivalentHebdo: number; // (X × 35) ÷ 1607
+  quotitePaie: number; // X ÷ 1607 (0–1)
+  prorata: number; // jours calendaires ÷ 365 (1 si pas de période saisie)
+  volumeReference: number; // 1607 × prorata
+  congesAnnuels: number; // ROUND(25 × quotité × prorata)
+  ecartCoherence: number; // heures réelles − volume de référence
+  valid: boolean;
+  errors: string[];
+}
+
+function validateAnnualisation(input: AnnualisationInputs): string[] {
+  const errors: string[] = [];
+  if (input.heuresHebdo < 0) errors.push('Les heures hebdomadaires ne peuvent pas être négatives.');
+  if (input.heuresHebdo > 60) errors.push('Heures hebdomadaires irréalistes (supérieures à 60 h).');
+  if (input.nbSemaines < 0) errors.push('Le nombre de semaines ne peut pas être négatif.');
+  if (input.nbSemaines > 53) errors.push('Le nombre de semaines ne peut pas dépasser 53.');
+  if (input.joursFeries < 0) errors.push('Les jours fériés ne peuvent pas être négatifs.');
+  if (input.joursMaladie < 0) errors.push("Les jours d'absence maladie ne peuvent pas être négatifs.");
+  if (input.dateDebut && input.dateFin) {
+    const d = parseDate(input.dateDebut);
+    const f = parseDate(input.dateFin);
+    if (!d || !f) errors.push('Période : date invalide.');
+    else if (f.getTime() < d.getTime()) errors.push('La date de fin doit être postérieure à la date de début.');
+  }
+  return errors;
+}
+
+/** Calcul d'annualisation. Renvoie toujours un objet (valeurs à 0 si saisie invalide). */
+export function computeAnnualisation(input: AnnualisationInputs): AnnualisationResults {
+  const errors = validateAnnualisation(input);
+  const valid = errors.length === 0;
+
+  const heuresHebdo = Math.max(0, input.heuresHebdo || 0);
+  const nbSemaines = Math.max(0, input.nbSemaines || 0);
+  const feries = Math.max(0, input.joursFeries || 0);
+  const maladie = Math.max(0, input.joursMaladie || 0);
+
+  // Période : prorata = jours calendaires ÷ 365 (1 si aucune période saisie).
+  const hasDates = Boolean(input.dateDebut && input.dateFin);
+  const nbCal = hasDates ? joursCalendaires(input.dateDebut, input.dateFin) : 0;
+  const prorata = hasDates && nbCal > 0 ? nbCal / DIVISEUR_PRORATA : 1;
+
+  const heuresAnnuelles = valid ? heuresHebdo * nbSemaines : 0; // X
+  const heuresParJour = heuresHebdo / JOURS_OUVRES_SEMAINE;
+  const heuresDeduites = valid ? (feries + maladie) * heuresParJour : 0;
+  const heuresReelles = Math.max(0, heuresAnnuelles - heuresDeduites);
+
+  const quotitePaie = valid ? heuresAnnuelles / DUREE_LEGALE_ANNUELLE : 0; // X ÷ 1607
+  const equivalentHebdo = quotitePaie * HEURES_HEBDO_TEMPS_PLEIN; // (X × 35) ÷ 1607
+  const volumeReference = valid ? DUREE_LEGALE_ANNUELLE * prorata : 0;
+  const congesAnnuels = valid ? roundExcel(CA_BASE_ANNUEL * quotitePaie * prorata) : 0;
+  const ecartCoherence = valid ? heuresReelles - volumeReference : 0;
+
+  return {
+    heuresAnnuelles,
+    heuresParJour,
+    heuresDeduites,
+    heuresReelles,
+    equivalentHebdo,
+    quotitePaie,
+    prorata,
+    volumeReference,
+    congesAnnuels,
+    ecartCoherence,
+    valid,
+    errors,
+  };
+}
+
 /* ------------------------------ Formatage ------------------------------ */
 
 export function fmtJours(n: number): string {
@@ -247,4 +352,23 @@ export function fmtDateFr(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return iso;
   return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Heures décimales → « 15,68 h ». */
+export function fmtHeures(n: number, decimals = 2): string {
+  return (
+    n.toLocaleString('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: decimals,
+    }) + ' h'
+  );
+}
+
+/** Heures décimales → « 15 h 41 » (heures et minutes). */
+export function fmtHeuresMinutes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 h';
+  const h = Math.floor(n);
+  const min = Math.round((n - h) * 60);
+  if (min === 60) return `${h + 1} h`;
+  return min === 0 ? `${h} h` : `${h} h ${String(min).padStart(2, '0')}`;
 }

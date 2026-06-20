@@ -3,6 +3,7 @@ import { Printer, Check, ClipboardCopy, Sparkles } from 'lucide-react';
 import type { Inputs, Results } from '../lib/calc';
 import { fmtJours, fmtDateFr, socleLabel } from '../lib/calc';
 import { useCountUp } from '../hooks/useCountUp';
+import { Button } from './ui/button';
 
 function Chip({ label, value }: { label: string; value: string }) {
   return (
@@ -39,7 +40,7 @@ export default function TotalCard({ inputs, results }: { inputs: Inputs; results
   }
 
   return (
-    <section className="print-clean relative overflow-hidden rounded-2xl bg-gradient-to-br from-trappes-900 via-trappes-800 to-trappes-700 p-6 text-white shadow-glow sm:p-7">
+    <section className="print-clean relative overflow-hidden rounded-lg bg-gradient-to-br from-trappes-900 via-trappes-800 to-trappes-700 p-6 text-white shadow-glow sm:p-7">
       <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-trappes-400/20 blur-3xl" />
 
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -67,19 +68,20 @@ export default function TotalCard({ inputs, results }: { inputs: Inputs; results
       </div>
 
       <div className="no-print relative mt-6 flex flex-wrap gap-3">
-        <button
+        <Button
           onClick={() => window.print()}
-          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-trappes-800 shadow transition hover:bg-trappes-50 active:scale-[0.98]"
+          className="bg-white text-trappes-800 shadow hover:bg-trappes-50"
         >
           <Printer className="h-4 w-4" /> Imprimer / PDF
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
           onClick={copy}
-          className="flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white backdrop-blur transition hover:bg-white/20 active:scale-[0.98]"
+          className="border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
         >
           {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <ClipboardCopy className="h-4 w-4" />}
           {copied ? 'Copié !' : 'Copier le récapitulatif'}
-        </button>
+        </Button>
       </div>
     </section>
   );

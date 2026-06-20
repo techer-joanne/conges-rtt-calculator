@@ -6,17 +6,20 @@ donnée.
 
 Refonte de l'outil Excel en application **réactive, intuitive et dynamique** :
 - recalcul instantané à chaque saisie ;
+- **Tableau de bord** d'accueil : 5 indicateurs clés + 4 graphiques (donut & barres) ;
 - valeurs animées et fiche imprimable / exportable en PDF ;
-- navigation en **sidebar** : **Calculateur**, **Départ de l'agent**, **Barème**, **Notice** ;
+- navigation en **sidebar** : **Tableau de bord**, **Calculateur**, **Départ de l'agent**, **Annualisation**, **Barème**, **Notice** ;
 - saisie mémorisée localement (localStorage), aucun envoi de données.
 
 Le moteur de calcul reproduit **fidèlement** le classeur Excel de la DRH
-(feuilles « Calculateur » et « Barèmes »).
+(feuilles « Calculateur » et « Barèmes ») et la méthode d'annualisation des
+centres de gestion (cahier des charges DRH).
 
 ## Stack
 
 - [Vite](https://vitejs.dev/) + [React 18](https://react.dev/) + TypeScript
-- [Tailwind CSS](https://tailwindcss.com/) (thème « Ville de Trappes »)
+- [Tailwind CSS](https://tailwindcss.com/) + composants **shadcn/ui** (thème « Ville de Trappes »)
+- [Recharts](https://recharts.org/) pour les graphiques du tableau de bord
 - [lucide-react](https://lucide.dev/) pour les icônes
 
 ## Démarrer
@@ -60,6 +63,22 @@ Cf. `src/lib/calc.ts` et l'onglet **Notice** de l'application.
 | Montant à payer (brut) | jours indemnisables × indemnité par jour |
 
 > Indemnisation des congés non pris : décret n° 2025-564, en fin de relation de travail.
+
+### Volet « Annualisation »
+
+Pour les agents dont le temps de travail est réparti sur l'année (planning
+variable). Méthode des centres de gestion : un temps plein = **1607 h/an**.
+
+| Élément | Formule |
+|---|---|
+| Heures annuelles (X) | heures hebdo × nombre de semaines travaillées |
+| Équivalent hebdomadaire annualisé | (X × 35) ÷ 1607 |
+| Quotité de paie | X ÷ 1607 |
+| Congés annuels | 25 × quotité × prorata (jours ouvrés, arrondi 0,5) |
+| RTT / ARTT | **0** — les agents annualisés n'ouvrent pas de RTT |
+
+> Exemple ATSEM (CDG27) : 20 h × 36 semaines → X = 720 h · équivalent **15,68 h/sem** ·
+> quotité **44,8 %** · **11 j** de congés.
 
 ### Exemple de référence (identique au classeur)
 

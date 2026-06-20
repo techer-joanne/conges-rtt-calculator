@@ -33,13 +33,16 @@ const { html } = await import(pathToFileURL(out).href);
 rmSync(entry, { force: true });
 rmSync(out, { force: true });
 
+// Onglet par défaut = « Tableau de bord » : on vérifie les KPIs + la sidebar.
 const must = [
-  'Calculateur de congés annuels',
+  'Calculateur de congés annuels', // en-tête
   'Direction des Ressources Humaines',
-  'Saisie',
-  'Résultats',
-  'Total congés + RTT',
-  'Départ de l', // entrée de la sidebar (apostrophe échappée en &#x27; par React)
+  'Tableau de bord', // onglet par défaut + entrée sidebar
+  'Total congés + RTT', // KPI
+  'Solde au départ', // KPI
+  'Indemnisation (brut)', // KPI
+  'Annualisation', // entrée sidebar (nouvel onglet)
+  'Départ de l', // entrée sidebar (apostrophe échappée en &#x27; par React)
   '100,0 %', // prorata année pleine (exemple Excel)
   '43', // total CA + RTT (exemple Excel)
   'Imprimer / PDF',

@@ -1,8 +1,12 @@
 import { DoorOpen, Wallet, BadgeEuro, CheckCircle2, XCircle, Info } from 'lucide-react';
 import type { Inputs, Results } from '../lib/calc';
 import { fmtJours, fmtEuro } from '../lib/calc';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Badge } from './ui/badge';
 
-/** Ligne « libellé · formule » → « valeur », style aligné sur le panneau Résultats. */
+/** Ligne « libellé · formule » → « valeur », alignée sur le panneau Résultats. */
 function StatRow({
   label,
   formula,
@@ -15,22 +19,14 @@ function StatRow({
   accent?: boolean;
 }) {
   return (
-    <div
-      className={`flex items-center justify-between gap-3 px-4 py-3.5 transition-colors ${
-        accent ? 'bg-trappes-50/70' : 'odd:bg-trappes-50/30'
-      }`}
-    >
+    <div className={`flex items-center justify-between gap-3 px-4 py-3.5 ${accent ? 'bg-accent/60' : 'odd:bg-muted/40'}`}>
       <div className="min-w-0">
-        <p className={`truncate text-sm font-semibold ${accent ? 'text-trappes-900' : 'text-trappes-800'}`}>
+        <p className={`truncate text-sm font-semibold ${accent ? 'text-foreground' : 'text-secondary-foreground'}`}>
           {label}
         </p>
-        <p className="mt-0.5 truncate text-xs italic text-trappes-400">{formula}</p>
+        <p className="mt-0.5 truncate text-xs italic text-muted-foreground">{formula}</p>
       </div>
-      <div
-        className={`shrink-0 tabular-nums text-right text-lg font-bold ${
-          accent ? 'text-trappes-700' : 'text-trappes-900'
-        }`}
-      >
+      <div className={`shrink-0 text-right text-lg font-bold tabular-nums ${accent ? 'text-primary' : 'text-foreground'}`}>
         {value}
       </div>
     </div>
@@ -47,15 +43,15 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="print-clean overflow-hidden rounded-2xl border border-trappes-100 bg-white shadow-card">
-      <div className="flex items-center gap-2 border-b border-trappes-100 bg-white px-5 py-4">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-trappes-600 text-white">
+    <Card className="print-clean overflow-hidden">
+      <CardHeader className="flex flex-row items-center gap-2 space-y-0 border-b">
+        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <Icon className="h-4 w-4" />
         </span>
-        <h2 className="text-base font-bold uppercase tracking-wide text-trappes-800">{title}</h2>
-      </div>
-      {children}
-    </section>
+        <CardTitle className="text-base font-bold uppercase tracking-wide text-secondary-foreground">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -87,67 +83,58 @@ export default function Depart({
   return (
     <div className="animate-fade-up space-y-6">
       {/* Saisie spécifique au départ */}
-      <section className="no-print rounded-2xl border border-trappes-100 bg-white p-5 shadow-card sm:p-6">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-trappes-600 text-white">
-            <DoorOpen className="h-4 w-4" />
-          </span>
-          <h2 className="text-base font-bold uppercase tracking-wide text-trappes-800">
+      <Card className="no-print">
+        <CardHeader className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2 text-base font-bold uppercase tracking-wide text-secondary-foreground">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <DoorOpen className="h-4 w-4" />
+            </span>
             Données de départ
-          </h2>
-        </div>
-        <p className="mb-5 flex items-start gap-1.5 text-xs italic text-trappes-500">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Calculé à partir de la saisie de l'onglet <strong className="not-italic">Calculateur</strong>{' '}
-          (socle, quotité, période). Complétez ci-dessous les deux éléments propres au départ.
-        </p>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="field-label" htmlFor="dejaPris">
-              <Wallet className="h-3.5 w-3.5 text-trappes-500" /> Congés déjà pris (j)
-            </label>
-            <input
-              id="dejaPris"
-              type="number"
-              min={0}
-              step={0.5}
-              value={inputs.congesDejaPris}
-              onChange={(e) => onChange({ congesDejaPris: Number(e.target.value) })}
-              className="field-input"
-            />
+          </CardTitle>
+          <p className="flex items-start gap-1.5 text-xs italic text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Calculé à partir de la saisie de l'onglet <strong className="not-italic">Calculateur</strong> (socle,
+            quotité, période). Complétez ci-dessous les deux éléments propres au départ.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="dejaPris" className="mb-1.5">
+                <Wallet className="h-3.5 w-3.5 text-primary" /> Congés déjà pris (j)
+              </Label>
+              <Input
+                id="dejaPris"
+                type="number"
+                min={0}
+                step={0.5}
+                value={inputs.congesDejaPris}
+                onChange={(e) => onChange({ congesDejaPris: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="remBrute" className="mb-1.5">
+                <BadgeEuro className="h-3.5 w-3.5 text-primary" /> Rémunération mensuelle brute (€)
+              </Label>
+              <Input
+                id="remBrute"
+                type="number"
+                min={0}
+                step={10}
+                value={inputs.remunerationBrute}
+                onChange={(e) => onChange({ remunerationBrute: Number(e.target.value) })}
+                placeholder="Dernière paie mensuelle complète"
+              />
+            </div>
           </div>
-          <div>
-            <label className="field-label" htmlFor="remBrute">
-              <BadgeEuro className="h-3.5 w-3.5 text-trappes-500" /> Rémunération mensuelle brute (€)
-            </label>
-            <input
-              id="remBrute"
-              type="number"
-              min={0}
-              step={10}
-              value={inputs.remunerationBrute}
-              onChange={(e) => onChange({ remunerationBrute: Number(e.target.value) })}
-              placeholder="Dernière paie mensuelle complète"
-              className="field-input"
-            />
-          </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       {/* Solde de congés au départ */}
       <SectionCard icon={Wallet} title="Solde de congés au départ">
-        <div className="divide-y divide-trappes-100">
-          <StatRow
-            label="Congés annuels acquis"
-            formula="CA proratisé à la date de départ"
-            value={fmtJours(results.caAcquis)}
-          />
-          <StatRow
-            label="Congés déjà pris"
-            formula="rappel de la saisie"
-            value={fmtJours(results.congesDejaPris)}
-          />
+        <div className="divide-y">
+          <StatRow label="Congés annuels acquis" formula="CA proratisé à la date de départ" value={fmtJours(results.caAcquis)} />
+          <StatRow label="Congés déjà pris" formula="rappel de la saisie" value={fmtJours(results.congesDejaPris)} />
           <StatRow
             label="Solde de congés payés"
             formula="à solder ou indemniser selon le statut"
@@ -155,19 +142,19 @@ export default function Depart({
             accent
           />
         </div>
-        <p className="border-t border-trappes-100 bg-trappes-50/40 px-5 py-3 text-xs leading-relaxed text-trappes-600">
+        <p className="border-t bg-muted/40 px-5 py-3 text-xs leading-relaxed text-muted-foreground">
           <strong>Titulaire</strong> : congés non pris à solder avant le départ (non indemnisables).{' '}
-          <strong>Contractuel</strong> (fin de contrat / licenciement) : indemnité compensatrice de
-          congés payés possible.
+          <strong>Contractuel</strong> (fin de contrat / licenciement) : indemnité compensatrice de congés payés
+          possible.
         </p>
       </SectionCard>
 
       {/* Indemnisation des congés non pris */}
       <SectionCard icon={BadgeEuro} title="Indemnisation des congés non pris">
-        <p className="border-b border-trappes-100 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-trappes-500">
-          Décret n° 2025-564
-        </p>
-        <div className="divide-y divide-trappes-100">
+        <div className="flex items-center gap-2 border-b px-5 py-2.5">
+          <Badge variant="secondary">Décret n° 2025-564</Badge>
+        </div>
+        <div className="divide-y">
           <StatRow
             label="Rémunération mensuelle brute de référence"
             formula="dernière paie mensuelle complète (saisie)"
@@ -188,49 +175,43 @@ export default function Depart({
         {/* Montant à payer — encart mis en avant */}
         <div className="flex items-center justify-between gap-3 bg-gradient-to-br from-trappes-800 to-trappes-600 px-5 py-4 text-white">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-trappes-100/90">
-              Montant à payer (brut)
-            </p>
-            <p className="text-[11px] italic text-trappes-200/80">
-              jours indemnisables × indemnité par jour
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-trappes-100/90">Montant à payer (brut)</p>
+            <p className="text-[11px] italic text-trappes-200/80">jours indemnisables × indemnité par jour</p>
           </div>
-          <p className="shrink-0 text-2xl font-extrabold tabular-nums">
-            {fmtEuro(results.montantIndemnisation)}
-          </p>
+          <p className="shrink-0 text-2xl font-extrabold tabular-nums">{fmtEuro(results.montantIndemnisation)}</p>
         </div>
 
         {/* Composition de la rémunération de référence */}
         <div className="space-y-3 px-5 py-4">
-          <p className="text-xs font-semibold text-trappes-700">
+          <p className="text-xs font-semibold text-secondary-foreground">
             Composition de la rémunération brute de référence (arrêté du 21/06/2025) :
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-emerald-700">
+            <div className="rounded-lg border border-success/30 bg-success/10 p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-success">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Inclus
               </p>
-              <ul className="space-y-1 text-xs leading-snug text-emerald-900">
+              <ul className="space-y-1 text-xs leading-snug text-foreground/80">
                 {INCLUS.map((x) => (
                   <li key={x}>· {x}</li>
                 ))}
               </ul>
             </div>
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-rose-700">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-destructive">
                 <XCircle className="h-3.5 w-3.5" /> Exclus
               </p>
-              <ul className="space-y-1 text-xs leading-snug text-rose-900">
+              <ul className="space-y-1 text-xs leading-snug text-foreground/80">
                 {EXCLUS.map((x) => (
                   <li key={x}>· {x}</li>
                 ))}
               </ul>
             </div>
           </div>
-          <p className="flex items-start gap-1.5 text-xs italic leading-relaxed text-trappes-500">
+          <p className="flex items-start gap-1.5 text-xs italic leading-relaxed text-muted-foreground">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Indemnité due uniquement en fin de relation de travail, pour les congés non pris
-            (4 premières semaines). À confirmer avec votre centre de gestion.
+            Indemnité due uniquement en fin de relation de travail, pour les congés non pris (4 premières
+            semaines). À confirmer avec votre centre de gestion.
           </p>
         </div>
       </SectionCard>

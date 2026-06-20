@@ -14,7 +14,7 @@ await build({
   logLevel: 'silent',
 });
 
-const { computeResults, rttBareme } = await import(pathToFileURL(out).href);
+const { computeResults, rttBareme, computeAnnualisation } = await import(pathToFileURL(out).href);
 
 const round2 = (x) => Math.round(x * 100) / 100;
 const base = {
@@ -36,6 +36,17 @@ const mal = computeResults({ ...base, joursMaladie: 13 });
 const dep = computeResults({ ...base, remunerationBrute: 2400 });
 // 7) Départ temps partiel 80 %, 5 j déjà pris : solde 15, plafond 16 -> 15 j · 1 728 €
 const dep80 = computeResults({ ...base, quotite: 80, congesDejaPris: 5, remunerationBrute: 2400 });
+
+// --- Annualisation (cahier des charges DRH / méthode CDG) ---
+const annuBase = {
+  nom: '', heuresHebdo: 20, nbSemaines: 36, dateDebut: '', dateFin: '', joursFeries: 0, joursMaladie: 0,
+};
+// A) Exemple ATSEM CDG27 : 20 h × 36 sem -> X 720 h · équiv. 15,68 h · quotité 44,8 % · CA 11 j
+const annu = computeAnnualisation(annuBase);
+// B) Année scolaire complète (01/09 -> 31/08) : prorata 100 %
+const annuFull = computeAnnualisation({ ...annuBase, dateDebut: '2026-09-01', dateFin: '2027-08-31' });
+// C) Déduction de 2 jours fériés travaillés (4 h/jour) -> 720 − 8 = 712 h réelles
+const annuFer = computeAnnualisation({ ...annuBase, joursFeries: 2 });
 
 const checks = [
   // Année pleine (exemple Excel)
@@ -81,6 +92,22 @@ const checks = [
   ['table 39h/50%', rttBareme('39', 50), 11.5],
   ['table 35h/100% (=0)', rttBareme('35', 100), 0],
   ['table Annualisation (=0)', rttBareme('annu', 100), 0],
+  // Annualisation — exemple ATSEM CDG27
+  ['annu · valid', annu.valid, true],
+  ['annu · heures annuelles (X)', annu.heuresAnnuelles, 720],
+  ['annu · équivalent hebdo (15,68 h)', round2(annu.equivalentHebdo), 15.68],
+  ['annu · quotité de paie %', Math.round(annu.quotitePaie * 1000) / 10, 44.8],
+  ['annu · prorata % (sans dates = 100)', Math.round(annu.prorata * 1000) / 10, 100],
+  ['annu · congés annuels (round 11,2→11)', annu.congesAnnuels, 11],
+  ['annu · heures réelles (sans déduction)', annu.heuresReelles, 720],
+  ['annu · écart cohérence (720−1607)', round2(annu.ecartCoherence), -887],
+  // Année scolaire complète -> prorata 100 %
+  ['annuFull · prorata %', Math.round(annuFull.prorata * 1000) / 10, 100],
+  ['annuFull · congés (= sans dates)', annuFull.congesAnnuels, 11],
+  // Déduction fériés (2 j × 4 h)
+  ['annuFer · heures déduites (2×4)', round2(annuFer.heuresDeduites), 8],
+  ['annuFer · heures réelles (712)', round2(annuFer.heuresReelles), 712],
+  ['annuFer · quotité inchangée %', Math.round(annuFer.quotitePaie * 1000) / 10, 44.8],
 ];
 
 let ok = true;

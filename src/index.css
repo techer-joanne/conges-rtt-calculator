@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(74, 134, 197, 0.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 0%, rgba(38, 75, 120, 0.12), transparent 55%),
+    linear-gradient(180deg, #eef4fb 0%, #f6fafd 100%);
+  background-attachment: fixed;
+  color: #16294d;
+  min-height: 100vh;
+}
+
+/* Champ de saisie homogène */
+.field-input {
+  @apply w-full rounded-xl border border-trappes-200 bg-white px-3.5 py-2.5 text-[15px] font-semibold
+         text-trappes-900 shadow-sm outline-none transition
+         placeholder:font-normal placeholder:text-trappes-400
+         focus:border-trappes-500 focus:ring-4 focus:ring-trappes-500/15;
+}
+
+.field-label {
+  @apply mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-trappes-700;
+}
+
+/* Range / slider stylé */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4a86c5 var(--pct, 100%), #d7e6f4 var(--pct, 100%));
+  outline: none;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #3367a3;
+  box-shadow: 0 2px 6px rgba(30, 58, 95, 0.35);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+input[type='range']::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #3367a3;
+  box-shadow: 0 2px 6px rgba(30, 58, 95, 0.35);
+  cursor: pointer;
+}
+
+/* Tooltip natif au survol de l'icône d'aide */
+.tip {
+  @apply relative inline-flex;
+}
+.tip > .tip-body {
+  @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-60 -translate-x-1/2
+         rounded-lg bg-trappes-900 px-3 py-2 text-xs font-medium leading-snug text-white
+         opacity-0 shadow-xl transition-opacity duration-150;
+}
+.tip:hover > .tip-body,
+.tip:focus-within > .tip-body {
+  @apply opacity-100;
+}
+
+/* Impression : ne garder que la fiche de résultats, en propre. */
+@media print {
+  body {
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-clean {
+    box-shadow: none !important;
+    border-color: #d7e6f4 !important;
+  }
+}

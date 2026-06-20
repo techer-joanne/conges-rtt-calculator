@@ -18,6 +18,7 @@ import {
   parseCsv,
   toCsvModele,
   DEMO_JUIN,
+  COLONNES,
   type EntiteKey,
   type EntiteData,
   type EntiteResultat,
@@ -29,7 +30,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
-const STORAGE_KEY = 'conges-rtt-trappes:ct:v1';
+const STORAGE_KEY = 'conges-rtt-trappes:ct:v2';
 const NUM = "font-['Space_Grotesk'] tabular-nums";
 const ENTITES: EntiteKey[] = ['VILLE', 'CCAS'];
 const ENTITE_META: Record<EntiteKey, { label: string; code: string; icon: typeof Building2 }> = {
@@ -37,7 +38,8 @@ const ENTITE_META: Record<EntiteKey, { label: string; code: string; icon: typeof
   CCAS: { label: 'CCAS', code: '004', icon: Landmark },
 };
 
-const fmtE = (v?: number) => (v === undefined ? '—' : fmtEuro(v));
+const fmtNum = (v?: number) =>
+  v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function StatutIcon({ statut, className }: { statut: Statut; className?: string }) {
   if (statut === 'ok') return <CheckCircle2 className={cn('text-success', className)} />;
@@ -48,7 +50,11 @@ function StatutIcon({ statut, className }: { statut: Statut; className?: string 
 function StatutBadge({ statut }: { statut: Statut }) {
   if (statut === 'ok') return <Badge variant="success">✓ Équilibrée</Badge>;
   if (statut === 'ko') return <Badge variant="destructive">Anomalie</Badge>;
-  return <Badge variant="secondary">Incomplet</Badge>;
+  return <Badge variant="secondary">À compléter</Badge>;
+}
+
+function emptyData(): Record<EntiteKey, EntiteData> {
+  return { VILLE: { tiers: [], totaux: {} }, CCAS: { tiers: [], totaux: {} } };
 }
 
 function loadData(): Record<EntiteKey, EntiteData> {
@@ -56,7 +62,9 @@ function loadData(): Record<EntiteKey, EntiteData> {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Partial<Record<EntiteKey, EntiteData>>;
-      return { VILLE: p.VILLE ?? {}, CCAS: p.CCAS ?? {} };
+      if (Array.isArray(p.VILLE?.tiers) && Array.isArray(p.CCAS?.tiers)) {
+        return { VILLE: p.VILLE, CCAS: p.CCAS };
+      }
     }
   } catch {
     /* ignore */
@@ -64,7 +72,16 @@ function loadData(): Record<EntiteKey, EntiteData> {
   return DEMO_JUIN;
 }
 
-/* --------------------------- Sous-composants --------------------------- */
+/* --------------------------- Synthèse --------------------------- */
+
+function Kpi({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn('mt-0.5 text-sm font-bold text-foreground', NUM)}>{value}</p>
+    </div>
+  );
+}
 
 function SyntheseCard({ res }: { res: EntiteResultat }) {
   const meta = ENTITE_META[res.entite];
@@ -77,38 +94,49 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
             <Icon className="h-4 w-4" />
           </span>
           <div>
-            <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
-              {meta.label}
-            </CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">{meta.label}</CardTitle>
             <p className="text-[11px] font-medium text-muted-foreground">Établissement {meta.code}</p>
           </div>
         </div>
         <StatutBadge statut={res.statut} />
       </CardHeader>
-      <CardContent className="space-y-1 p-0">
-        {res.reconciliations.map((r) => (
-          <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-muted/40">
-            <div className="flex min-w-0 items-center gap-2">
-              <StatutIcon statut={r.statut} className="h-4 w-4 shrink-0" />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{r.label}</p>
-                <p className="truncate text-[11px] italic text-muted-foreground">{r.detail}</p>
+      <CardContent className="space-y-3 p-4">
+        {/* Réconciliations clés */}
+        <div className="space-y-1">
+          {res.reconciliations.length === 0 && (
+            <p className="text-xs italic text-muted-foreground">Importez un CSV pour voir les réconciliations.</p>
+          )}
+          {res.reconciliations.map((r) => (
+            <div key={r.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 odd:bg-muted/30">
+              <div className="flex min-w-0 items-center gap-2">
+                <StatutIcon statut={r.statut} className="h-4 w-4 shrink-0" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{r.label}</p>
+                  <p className="truncate text-[11px] italic text-muted-foreground">{r.detail}</p>
+                </div>
               </div>
+              <span
+                className={cn(
+                  'shrink-0 text-xs font-bold',
+                  NUM,
+                  r.statut === 'ko' ? 'text-destructive' : 'text-success',
+                )}
+              >
+                {r.ecart === undefined ? '—' : `± ${fmtEuro(r.ecart)}`}
+              </span>
             </div>
-            <span
-              className={cn(
-                'shrink-0 text-right text-xs font-bold',
-                NUM,
-                r.statut === 'ko' ? 'text-destructive' : r.statut === 'ok' ? 'text-success' : 'text-muted-foreground',
-              )}
-            >
-              {r.ecart === undefined ? '—' : `écart ${fmtEuro(r.ecart)}`}
-            </span>
-          </div>
-        ))}
+          ))}
+        </div>
+
+        {/* Chiffres clés */}
+        <div className="grid grid-cols-3 gap-2">
+          <Kpi label="Total CIRIL" value={res.totalCiril === undefined ? '—' : fmtEuro(res.totalCiril, 0)} />
+          <Kpi label="Paie" value={res.totalPaie === undefined ? '—' : fmtEuro(res.totalPaie, 0)} />
+          <Kpi label="Anomalies" value={String(res.nbAnomalies)} />
+        </div>
 
         {res.titreArrondi && (
-          <div className="flex items-start gap-2 border-t border-amber-300/30 bg-amber-400/10 px-4 py-2.5 text-xs font-medium text-amber-300">
+          <div className="flex items-start gap-2 rounded-md border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Titre d'arrondi PAS à émettre ({fmtEuro(res.pasEcartArrondi ?? 0)}) — n° de bordereau à saisir.
           </div>
@@ -117,6 +145,8 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
     </Card>
   );
 }
+
+/* --------------------------- Détail (matrice) --------------------------- */
 
 function DetailCard({ res }: { res: EntiteResultat }) {
   const meta = ENTITE_META[res.entite];
@@ -127,34 +157,80 @@ function DetailCard({ res }: { res: EntiteResultat }) {
           <ShieldCheck className="h-4 w-4" />
         </span>
         <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
-          Détail {meta.label} — 9 contrôles
+          Détail {meta.label} — rapprochement par Code Tiers
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="w-8 text-center">#</TableHead>
-              <TableHead>Contrôle</TableHead>
-              <TableHead className="w-16">Source</TableHead>
-              <TableHead className="text-right">Montant</TableHead>
-              <TableHead className="w-12 text-center">État</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {res.controles.map((c) => (
-              <TableRow key={c.n}>
-                <TableCell className="text-center text-xs font-bold text-muted-foreground">{c.n}</TableCell>
-                <TableCell className="font-semibold text-foreground">{c.label}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{c.source}</TableCell>
-                <TableCell className={cn('text-right font-bold text-foreground', NUM)}>{fmtE(c.value)}</TableCell>
-                <TableCell className="text-center">
-                  <StatutIcon statut={c.statut} className="mx-auto h-4 w-4" />
-                </TableCell>
+        {res.lignes.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm italic text-muted-foreground">
+            Aucune donnée — glissez le CSV de l'outil compagnon.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="text-left">Tiers</TableHead>
+                {COLONNES.map((c) => (
+                  <TableHead key={c.key} className="text-right" title={`${c.key} — ${c.label} (contrôle ${c.n})`}>
+                    {c.court}
+                  </TableHead>
+                ))}
+                <TableHead className="text-right">Écart</TableHead>
+                <TableHead className="w-10 text-center">État</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {res.lignes.map((l) => (
+                <TableRow key={l.code}>
+                  <TableCell className="whitespace-nowrap">
+                    <span className="font-semibold text-foreground">{l.libelle || l.code}</span>
+                    <span className="ml-1.5 text-[10px] text-muted-foreground">{l.code}</span>
+                  </TableCell>
+                  {COLONNES.map((c) => (
+                    <TableCell
+                      key={c.key}
+                      className={cn(
+                        'text-right text-xs',
+                        NUM,
+                        l.valeurs[c.key] === undefined ? 'text-muted-foreground/40' : 'text-foreground',
+                      )}
+                    >
+                      {fmtNum(l.valeurs[c.key])}
+                    </TableCell>
+                  ))}
+                  <TableCell
+                    className={cn(
+                      'text-right text-xs font-bold',
+                      NUM,
+                      l.statut === 'ko' ? 'text-destructive' : l.arrondi ? 'text-amber-300' : 'text-muted-foreground',
+                    )}
+                  >
+                    {l.ecart === undefined ? '·' : fmtNum(l.ecart)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {l.arrondi ? (
+                      <AlertTriangle className="mx-auto h-4 w-4 text-amber-300" />
+                    ) : (
+                      <StatutIcon statut={l.statut} className="mx-auto h-4 w-4" />
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {Object.keys(res.totaux).length > 0 && (
+                <TableRow className="border-t-2 border-border bg-muted/40 font-bold hover:bg-muted/40">
+                  <TableCell className="whitespace-nowrap text-foreground">Total fichier CIRIL</TableCell>
+                  {COLONNES.map((c) => (
+                    <TableCell key={c.key} className={cn('text-right text-xs text-foreground', NUM)}>
+                      {fmtNum(res.totaux[c.key])}
+                    </TableCell>
+                  ))}
+                  <TableCell />
+                  <TableCell />
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );
@@ -177,10 +253,7 @@ export default function ControleTiers() {
     }
   }, [data]);
 
-  const results = useMemo(
-    () => ENTITES.map((e) => computeEntite(e, data[e] ?? {})),
-    [data],
-  );
+  const results = useMemo(() => ENTITES.map((e) => computeEntite(e, data[e] ?? { tiers: [], totaux: {} })), [data]);
 
   async function handleFiles(files: FileList | null) {
     const f = files?.[0];
@@ -192,10 +265,10 @@ export default function ControleTiers() {
       if (Object.keys(parsed).length === 0) {
         return setInfo({
           kind: 'warn',
-          text: `Aucune valeur reconnue (${lignesIgnorees} ligne(s) ignorée(s)). Dépose ton « Exemple import controle tiers.csv » et j'aligne le format.`,
+          text: `Aucune donnée reconnue (${lignesIgnorees} ligne(s) ignorée(s)). Format attendu : ENTITE, CODE_TIERS, LIBELLE, COLONNE, VALEUR.`,
         });
       }
-      setData((prev) => ({ ...prev, ...parsed }));
+      setData((prev) => ({ ...emptyData(), ...prev, ...parsed }));
       setSource(f.name);
       setInfo({ kind: 'ok', text: `${lignesReconnues} valeur(s) importée(s) · ${lignesIgnorees} ignorée(s).` });
     } catch {
@@ -226,7 +299,7 @@ export default function ControleTiers() {
         <div>
           <h2 className={cn('text-xl font-bold tracking-tight text-foreground', NUM)}>Contrôle Tiers</h2>
           <p className="text-sm text-muted-foreground">
-            Rapprochement de paie — 9 contrôles · Ville &amp; CCAS · <span className="font-semibold text-foreground">{source}</span>
+            Rapprochement de paie · Ville &amp; CCAS · <span className="font-semibold text-foreground">{source}</span>
           </p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
@@ -239,13 +312,7 @@ export default function ControleTiers() {
           <Button variant="ghost" onClick={resetDemo}>
             <RotateCcw className="h-4 w-4" /> Exemple
           </Button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
-          />
+          <input ref={inputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         </div>
       </div>
 
@@ -269,13 +336,9 @@ export default function ControleTiers() {
       >
         <Upload className="h-5 w-5 text-primary" />
         <p className="text-sm font-semibold text-foreground">Glissez-déposez le CSV de l'outil compagnon</p>
-        <p className="text-xs text-muted-foreground">
-          (sortie « import_controle_tiers.csv ») — ou cliquez pour parcourir
-        </p>
+        <p className="text-xs text-muted-foreground">(« import_controle_tiers.csv ») — ou cliquez pour parcourir</p>
         {info && (
-          <p className={cn('mt-1 text-xs font-medium', info.kind === 'ok' ? 'text-success' : 'text-amber-300')}>
-            {info.text}
-          </p>
+          <p className={cn('mt-1 text-xs font-medium', info.kind === 'ok' ? 'text-success' : 'text-amber-300')}>{info.text}</p>
         )}
       </div>
 
@@ -291,23 +354,28 @@ export default function ControleTiers() {
         </div>
       </div>
 
-      {/* Détail */}
-      <div>
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-secondary-foreground">Détail des contrôles</h3>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {results.map((r) => (
-            <DetailCard key={r.entite} res={r} />
+      {/* Détail (matrice par Code Tiers) */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">Détail des 9 contrôles</h3>
+        {results.map((r) => (
+          <DetailCard key={r.entite} res={r} />
+        ))}
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          {COLONNES.map((c) => (
+            <span key={c.key}>
+              <span className="font-semibold text-foreground">{c.court}</span> = {c.label} (contrôle {c.n})
+            </span>
           ))}
-        </div>
+        </p>
       </div>
 
       {/* Note */}
       <div className="flex items-start gap-2 rounded-lg border border-border bg-card/50 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         <span>
-          Vue de synthèse (couche d'affichage). La lecture des PDF/CIRIL et la production du CSV restent assurées par
-          l'outil compagnon. Montants d'exemple : juin 2026 — dépose ton CSV réel pour les remplacer. Régul. bloc 56 et
-          n° de bordereau du titre d'arrondi : saisie manuelle dans CIRIL.
+          Vue de synthèse : l'extraction des PDF/CIRIL et la production du CSV restent assurées par l'outil compagnon.
+          Rapprochement par <strong>Code Tiers</strong> (un tiers = une ligne, colonnes C→I). L'écart de centimes sur le
+          PAS est attendu (→ titre d'arrondi). Régul. bloc 56 et n° de bordereau : saisie manuelle dans CIRIL.
         </span>
       </div>
     </div>

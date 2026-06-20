@@ -29,12 +29,14 @@ const { computeEntite, parseCsv, parseMontant, DEMO_JUIN } = await import(pathTo
 const ctVille = computeEntite('VILLE', DEMO_JUIN.VILLE);
 const ctCcas = computeEntite('CCAS', DEMO_JUIN.CCAS);
 const ctCsv = parseCsv(
-  'ENTITE,CODE_TIERS,LIBELLE,COLONNE,VALEUR\n' +
-    'VILLE,11788,URSSAF,C,925561.32\n' +
-    'VILLE,11788,URSSAF,G,925561.32\n' +
-    'VILLE,_TOTAL_CIRIL,Total,C,3406242.95\n' +
-    'VILLE,_TITRE_PAS,Titre,,0.29\n' +
-    'CCAS,24574,PAS,H,767.08\n',
+  'ENTITE,CODE_TIERS,LIBELLE,COLONNE,VALEUR,CONTROLE\n' +
+    'VILLE,11788,URSSAF,C,925561.32,1\n' +
+    'VILLE,11788,URSSAF,G,925561.32,6\n' +
+    'VILLE,24574,PAS/SIE,C,56260.00,1\n' +
+    'VILLE,24574,PAS/SIE,F,56260.29,9\n' +
+    'VILLE,_TOTAL_CIRIL,,C,3406242.95,1\n' +
+    'VILLE,_TITRE_PAS,,,OUI,8\n' +
+    'CCAS,1467,URSSAF,C,8015.37,1\n',
 );
 const ctTierUrssaf = ctCsv.data.VILLE.tiers.find((t) => t.code === '11788');
 
@@ -136,7 +138,8 @@ const checks = [
   ['CT Ville · titre arrondi PAS', ctVille.titreArrondi, true],
   ['CT Ville · écart arrondi PAS', round2(ctVille.pasEcartArrondi), 0.29],
   ['CT Ville · total CIRIL', round2(ctVille.totalCiril), 3406242.95],
-  ['CT Ville · réconciliation URSSAF', ctVille.reconciliations.find((r) => r.id === 'urssaf').statut, 'ok'],
+  ['CT Ville · réconciliation budgétaire', ctVille.reconciliations.find((r) => r.id === 'budget').statut, 'ok'],
+  ['CT Ville · réconciliation bloc 81', ctVille.reconciliations.find((r) => r.id === 'bloc81').statut, 'ok'],
   ['CT Ville · réconciliation PAS', ctVille.reconciliations.find((r) => r.id === 'pas').statut, 'ok'],
   ['CT CCAS · statut équilibrée', ctCcas.statut, 'ok'],
   ['CT CCAS · pas de titre arrondi', ctCcas.titreArrondi, false],
@@ -144,8 +147,8 @@ const checks = [
   ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
   ['CT parseCsv · tier URSSAF colonne C', ctTierUrssaf.valeurs.C, 925561.32],
   ['CT parseCsv · total CIRIL', ctCsv.data.VILLE.totaux.C, 3406242.95],
-  ['CT parseCsv · titre PAS', ctCsv.data.VILLE.titrePas, 0.29],
-  ['CT parseCsv · lignes reconnues', ctCsv.lignesReconnues, 5],
+  ['CT parseCsv · titre PAS (OUI)', ctCsv.data.VILLE.titrePasFlag, true],
+  ['CT parseCsv · lignes reconnues', ctCsv.lignesReconnues, 7],
 ];
 
 let ok = true;

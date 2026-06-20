@@ -10,6 +10,7 @@ import ResultsPanel from './components/Results';
 import TotalCard from './components/TotalCard';
 import Depart from './components/Depart';
 import Annualisation from './components/Annualisation';
+import ControleTiers from './components/ControleTiers';
 import Bareme from './components/Bareme';
 import Notice from './components/Notice';
 import {
@@ -28,6 +29,7 @@ const SECTION_TITLES: Record<TabId, string> = {
   calculateur: 'Calculateur',
   depart: "Départ de l'agent",
   annualisation: 'Annualisation',
+  'controle-tiers': 'Contrôle Tiers',
   bareme: 'Barème',
   notice: 'Notice',
 };
@@ -146,6 +148,7 @@ export default function App() {
             {tab === 'annualisation' && (
               <Annualisation inputs={annuInputs} onChange={updateAnnu} results={annuResults} />
             )}
+            {tab === 'controle-tiers' && <ControleTiers />}
             {tab === 'bareme' && <Bareme currentSocle={inputs.socle} currentQuotite={inputs.quotite} />}
             {tab === 'notice' && <Notice />}
           </main>

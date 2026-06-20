@@ -16,6 +16,20 @@ await build({
 
 const { computeResults, rttBareme, computeAnnualisation } = await import(pathToFileURL(out).href);
 
+// Moteur « Contrôle Tiers » (rapprochement de paie).
+const outCt = join(tmpdir(), `ct-${Date.now()}.mjs`);
+await build({
+  entryPoints: ['src/lib/controleTiers.ts'],
+  outfile: outCt,
+  format: 'esm',
+  bundle: true,
+  logLevel: 'silent',
+});
+const { computeEntite, parseCsv, parseMontant, DEMO_JUIN } = await import(pathToFileURL(outCt).href);
+const ctVille = computeEntite('VILLE', DEMO_JUIN.VILLE);
+const ctCcas = computeEntite('CCAS', DEMO_JUIN.CCAS);
+const ctCsv = parseCsv('entite;cle;valeur\nVILLE;urssaf;925 561,32\nVILLE;bloc81_urssaf;925561.32\nCCAS;bloc50;767,08\n');
+
 const round2 = (x) => Math.round(x * 100) / 100;
 const base = {
   nom: '', socle: '38', quotite: 100, dateDebut: '2026-01-01', dateFin: '2026-12-31',
@@ -108,6 +122,19 @@ const checks = [
   ['annuFer · heures déduites (2×4)', round2(annuFer.heuresDeduites), 8],
   ['annuFer · heures réelles (712)', round2(annuFer.heuresReelles), 712],
   ['annuFer · quotité inchangée %', Math.round(annuFer.quotitePaie * 1000) / 10, 44.8],
+  // Contrôle Tiers — exemple juin 2026
+  ['CT Ville · statut', ctVille.statut, 'ok'],
+  ['CT Ville · titre arrondi PAS', ctVille.titreArrondi, true],
+  ['CT Ville · écart arrondi PAS', round2(ctVille.pasEcartArrondi), 0.29],
+  ['CT Ville · bloc 81 total', round2(ctVille.bloc81Total), round2(925561.32 + 380018.77 + 90001.6 + 15894.94 + 4384.47)],
+  ['CT Ville · réconciliation URSSAF ok', ctVille.reconciliations.find((r) => r.id === 'urssaf').statut, 'ok'],
+  ['CT CCAS · statut (incomplet)', ctCcas.statut, 'na'],
+  ['CT CCAS · pas de titre arrondi', ctCcas.titreArrondi, false],
+  // Parsing CSV (français + point décimal)
+  ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
+  ['CT parseCsv · Ville urssaf', ctCsv.data.VILLE.urssaf, 925561.32],
+  ['CT parseCsv · CCAS bloc50', ctCsv.data.CCAS.pasBloc50, 767.08],
+  ['CT parseCsv · lignes reconnues', ctCsv.lignesReconnues, 3],
 ];
 
 let ok = true;

@@ -47,6 +47,16 @@
     --chart-3: 211 45% 31%;
     --chart-4: 207 49% 67%;
     --chart-5: 214 47% 24%;
+
+    /* Sidebar — surface sombre & « marque » Ville de Trappes (proche trappes-950). */
+    --sidebar-background: 213 52% 9%;
+    --sidebar-foreground: 210 40% 92%;
+    --sidebar-primary: 207 49% 67%;
+    --sidebar-primary-foreground: 213 52% 12%;
+    --sidebar-accent: 213 45% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 213 40% 20%;
+    --sidebar-ring: 212 52% 50%;
   }
 }
 

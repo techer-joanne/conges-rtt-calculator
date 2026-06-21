@@ -19,7 +19,7 @@ export default function TotalCard({ inputs, results }: { inputs: Inputs; results
   const [copied, setCopied] = useState(false);
 
   const recap =
-    `Calcul congés & RTT — Ville de Trappes\n` +
+    `Calcul congés & RTT — DRH\n` +
     `Agent : ${inputs.nom || '—'}\n` +
     `Période : ${fmtDateFr(inputs.dateDebut)} → ${fmtDateFr(inputs.dateFin)} ` +
     `(${results.joursCalendaires} j calendaires, prorata ${fmtJours(results.prorata * 100)} %)\n` +

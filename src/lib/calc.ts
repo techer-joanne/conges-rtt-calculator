@@ -1,7 +1,7 @@
 /**
  * Moteur de calcul des congés annuels (CA) et RTT.
  *
- * Reproduit FIDÈLEMENT le classeur Excel de la DRH (Ville de Trappes) :
+ * Reproduit FIDÈLEMENT le classeur Excel de la DRH :
  * feuilles « Calculateur » + « Barèmes ». Vérifiable avec l'exemple du classeur
  * (38 h, 100 %, année pleine 01/01 → 31/12, 0 maladie) :
  *   CA = 25 · RTT = 18 · TOTAL (congés + RTT) = 43

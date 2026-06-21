@@ -42,7 +42,7 @@ export default function AppSidebar({
               Congés &amp; RTT
             </span>
             <span className="truncate text-[11px] font-medium uppercase tracking-wide text-sidebar-foreground/60">
-              Ville de Trappes — DRH
+              DRH
             </span>
           </div>
         </div>

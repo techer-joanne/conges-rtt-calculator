@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Calculateur de congés annuels & RTT — Ville de Trappes (DRH)",
+  "description": "Calculateur de congés annuels & RTT (DRH)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

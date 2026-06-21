@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /*
- * Jetons de thème shadcn/ui, calés sur la charte « Ville de Trappes ».
+ * Jetons de thème shadcn/ui, calés sur la charte de marque.
  * L'application est servie en MODE SOMBRE (classe .dark sur <html>) ; les
  * valeurs claires de :root servent de repli et au rendu d'impression.
  */
@@ -58,7 +58,7 @@
     --sidebar-ring: 212 52% 50%;
   }
 
-  /* ----- Thème sombre « Ville de Trappes » (appliqué partout) ----- */
+  /* ----- Thème sombre de marque (appliqué partout) ----- */
   .dark {
     --background: 219 47% 9%;
     --foreground: 213 31% 91%;

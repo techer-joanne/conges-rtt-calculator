@@ -122,12 +122,11 @@ export default function App() {
               {SECTION_TITLES[tab]}
             </h1>
             <span className="ml-auto hidden truncate text-xs font-medium text-muted-foreground sm:block">
-              Ville de Trappes — DRH
+              DRH
             </span>
             {/* Marque complète, conservée pour le SSR / l'accessibilité. */}
             <span className="sr-only">
-              Calculateur de congés annuels &amp; RTT — Ville de Trappes, Direction des Ressources
-              Humaines
+              Calculateur de congés annuels &amp; RTT — Direction des Ressources Humaines
             </span>
           </header>
 
@@ -157,7 +156,7 @@ export default function App() {
           </main>
 
           <footer className="no-print border-t border-border py-6 text-center text-xs text-muted-foreground">
-            Ville de Trappes — Direction des Ressources Humaines · Outil d'estimation des congés &amp; RTT
+            Direction des Ressources Humaines · Outil d'estimation des congés &amp; RTT
           </footer>
         </SidebarInset>
       </SidebarProvider>

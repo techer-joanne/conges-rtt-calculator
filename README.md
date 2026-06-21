@@ -1,4 +1,4 @@
-# Calculateur de congés annuels & RTT — Ville de Trappes
+# Calculateur de congés annuels & RTT — DRH
 
 Application web moderne reprenant le tableur Excel de la DRH pour estimer, pour
 un agent, le nombre de jours de repos (congés annuels + RTT) sur une période
@@ -18,7 +18,7 @@ centres de gestion (cahier des charges DRH).
 ## Stack
 
 - [Vite](https://vitejs.dev/) + [React 18](https://react.dev/) + TypeScript
-- [Tailwind CSS](https://tailwindcss.com/) + composants **shadcn/ui** (thème « Ville de Trappes »)
+- [Tailwind CSS](https://tailwindcss.com/) + composants **shadcn/ui** (thème de marque)
 - [Recharts](https://recharts.org/) pour les graphiques du tableau de bord
 - [lucide-react](https://lucide.dev/) pour les icônes
 

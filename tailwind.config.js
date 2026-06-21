@@ -67,7 +67,7 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
-        // Palette « Ville de Trappes » conservée pour les accents de marque.
+        // Palette de marque conservée pour les accents.
         trappes: {
           50: '#f2f8fd',
           100: '#e6f0f9',

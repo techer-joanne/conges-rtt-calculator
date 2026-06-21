@@ -432,12 +432,15 @@ export default function ControleTiers() {
     }
   }
 
-  function downloadModele() {
-    const blob = new Blob([toCsvModele(DEMO_JUIN)], { type: 'text/csv;charset=utf-8' });
+  /** Pont vers Excel : exporte les données courantes au format compagnon
+   *  (import_controle_tiers.csv) ré-injectable dans le .xlsm via la macro. */
+  function exportCsv() {
+    const csv = '\uFEFF' + toCsvModele(data); // BOM UTF-8 pour Excel
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'modele_controle_tiers.csv';
+    a.download = 'import_controle_tiers.csv';
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -467,8 +470,8 @@ export default function ControleTiers() {
           <Button variant="ghost" onClick={() => csvRef.current?.click()}>
             <FileText className="h-4 w-4" /> Importer un CSV
           </Button>
-          <Button variant="ghost" onClick={downloadModele}>
-            <FileDown className="h-4 w-4" /> Modèle CSV
+          <Button variant="ghost" onClick={exportCsv}>
+            <FileDown className="h-4 w-4" /> Exporter le CSV
           </Button>
           <Button variant="ghost" onClick={resetDemo}>
             <RotateCcw className="h-4 w-4" /> Exemple
@@ -585,6 +588,10 @@ export default function ControleTiers() {
           <strong>par son contenu</strong>, jamais par son nom. Rapprochement par <strong>Code Tiers</strong> (un tiers =
           une ligne, colonnes C→I, écarts J→O). L'écart de centimes sur le PAS est attendu (→ titre d'arrondi, jamais une
           anomalie). Régul. bloc 56 et n° de bordereau : saisie manuelle dans CIRIL.
+          {' '}
+          <strong className="text-foreground">Pont vers Excel</strong> : « Exporter le CSV » produit{' '}
+          <code className="rounded bg-muted px-1">import_controle_tiers.csv</code>, ré-injectable dans le tableau{' '}
+          <code className="rounded bg-muted px-1">.xlsm</code> via la macro <code className="rounded bg-muted px-1">ImporterControleTiers</code>.
         </span>
       </div>
     </div>

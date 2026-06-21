@@ -13,6 +13,8 @@ import {
   Info,
   FileText,
   Loader2,
+  Trash2,
+  FileSearch,
 } from 'lucide-react';
 import { fmtEuro } from '../lib/calc';
 import {
@@ -70,6 +72,10 @@ function StatutBadge({ statut }: { statut: Statut }) {
 function emptyData(): Record<EntiteKey, EntiteData> {
   return { VILLE: { tiers: [], totaux: {} }, CCAS: { tiers: [], totaux: {} } };
 }
+
+/** Une entité a-t-elle reçu des données (tiers / totaux / titre) ? */
+const aDesDonnees = (ed?: EntiteData) =>
+  !!ed && (ed.tiers.length > 0 || Object.keys(ed.totaux).length > 0 || ed.titrePasFlag !== undefined);
 
 function loadData(): Record<EntiteKey, EntiteData> {
   try {
@@ -352,6 +358,143 @@ async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
   return filtered.length ? filtered : Array.from(dt.files).filter((f) => EXT_OK.test(f.name));
 }
 
+/* --------------------- Traçabilité & contrôle des données --------------------- */
+
+function DiagnosticCard({ res, log }: { res: EntiteResultat; log: LogLine[] }) {
+  const meta = ENTITE_META[res.entite];
+  const Icon = meta.icon;
+  const lignesEnt = log.filter((l) => l.entite === res.entite && l.controle > 0);
+  const fichierParCtrl = new Map<number, string>();
+  lignesEnt.forEach((l) => {
+    if (!fichierParCtrl.has(l.controle)) fichierParCtrl.set(l.controle, l.name);
+  });
+  const found = fichierParCtrl.size;
+  const manquants = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => !fichierParCtrl.has(n));
+  const anomReco = res.reconciliations.filter((r) => r.statut === 'ko');
+  const anomTiers = res.lignes.filter((l) => l.statut === 'ko');
+  const parCsv = lignesEnt.length === 0 && res.renseigne;
+
+  return (
+    <Card className="print-clean overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-primary">
+            <Icon className="h-4 w-4" />
+          </span>
+          <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
+            Traçabilité — {meta.label}
+          </CardTitle>
+        </div>
+        {!parCsv && (
+          <Badge variant={found === 9 ? 'success' : found === 0 ? 'secondary' : 'outline'}>{found}/9 contrôles</Badge>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3 p-4 text-xs">
+        {!res.renseigne ? (
+          <p className="italic text-muted-foreground">Aucune donnée pour {meta.label}.</p>
+        ) : parCsv ? (
+          <p className="italic text-muted-foreground">
+            Données importées par CSV — la traçabilité fichier par contrôle n'est disponible qu'en lecture directe des
+            éditions CIRIL.
+          </p>
+        ) : (
+          <>
+            {/* Couverture des 9 contrôles (quel fichier pour quoi) */}
+            <div>
+              <p className="mb-1.5 font-semibold text-secondary-foreground">Couverture des contrôles</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
+                  const file = fichierParCtrl.get(n);
+                  return (
+                    <Tooltip key={n}>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-semibold',
+                            file
+                              ? 'border-success/30 bg-success/10 text-success'
+                              : 'border-amber-300/30 bg-amber-400/10 text-amber-300',
+                          )}
+                        >
+                          {file ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />} {n}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="font-semibold">{CTRL_NOMS[n]}</p>
+                        <p className="text-muted-foreground">{file ?? 'fichier manquant'}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+              {manquants.length > 0 && (
+                <p className="mt-1.5 text-amber-300">
+                  Manquant(s) : {manquants.map((n) => `${n} (${CTRL_NOMS[n]})`).join(' · ')}
+                </p>
+              )}
+            </div>
+
+            {/* Fichiers lus → contrôle détecté */}
+            <div>
+              <p className="mb-1 font-semibold text-secondary-foreground">Fichiers lus</p>
+              <ul className="space-y-0.5">
+                {lignesEnt.map((l, i) => (
+                  <li key={i} className="flex items-center gap-1.5 text-muted-foreground">
+                    <FileText className="h-3 w-3 shrink-0 text-primary" />
+                    <span className="truncate text-foreground">{l.name}</span>
+                    <span className="shrink-0">→ contrôle {l.controle} ({CTRL_NOMS[l.controle]})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Anomalies à vérifier */}
+            <div>
+              <p className="mb-1 font-semibold text-secondary-foreground">Anomalies</p>
+              {anomReco.length === 0 && anomTiers.length === 0 ? (
+                <p className="flex items-center gap-1.5 text-success">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Aucune anomalie — toutes les sources concordent.
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {anomReco.map((r) => (
+                    <li key={r.id} className="flex items-start gap-1.5 text-destructive">
+                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {r.label} — écart {fmtEuro(r.ecart ?? 0)}
+                      </span>
+                    </li>
+                  ))}
+                  {anomTiers.map((l) => {
+                    const detail = ECARTS_META.filter((m) => Math.abs(l.ecarts[m.key] ?? 0) > 0.01)
+                      .map((m) => `${m.key} ${fmtNum(l.ecarts[m.key])}`)
+                      .join(' · ');
+                    return (
+                      <li key={l.code} className="flex items-start gap-1.5 text-destructive">
+                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {l.libelle || l.code} <span className="text-muted-foreground">({l.code})</span> — {detail}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {res.titreArrondi && (
+              <p className="flex items-start gap-1.5 text-amber-300">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Titre d'arrondi PAS à émettre ({fmtEuro(res.pasEcartArrondi ?? 0)}) — normal, pas une anomalie.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ------------------------------ Onglet ------------------------------ */
 
 export default function ControleTiers() {
@@ -364,6 +507,7 @@ export default function ControleTiers() {
   const [errors, setErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const csvRef = useRef<HTMLInputElement>(null);
+  const loadedRef = useRef(false); // false = exemple démo ; true = données chargées (cumul des dépôts)
 
   useEffect(() => {
     try {
@@ -389,18 +533,31 @@ export default function ControleTiers() {
       // Import paresseux : ctExtract charge pdf.js / xlsx à la demande (jamais en SSR).
       const { aggregate } = await import('../lib/ctExtract');
       const { data: parsed, log: logLines, errors: errs } = await aggregate(arr);
-      setLog(logLines);
-      setErrors(errs);
-      const nbVal = (Object.values(parsed) as EntiteData[]).reduce((n, ed) => n + ed.tiers.length, 0);
-      if (nbVal === 0) {
+      const updated = ENTITES.filter((e) => aDesDonnees(parsed[e]));
+      if (updated.length === 0) {
+        setLog(logLines);
+        setErrors(errs);
         setInfo({
           kind: 'warn',
           text: 'Aucune valeur extraite — vérifiez que les fichiers sont bien les éditions CIRIL attendues.',
         });
       } else {
-        setData(parsed);
-        setSource(`${arr.length} fichier(s) CIRIL`);
-        setInfo({ kind: 'ok', text: `${nbVal} ligne(s) de tiers extraite(s) de ${arr.length} fichier(s).` });
+        // CUMUL : on remplace seulement les entités présentes dans ce dépôt,
+        // on conserve l'autre (Ville + CCAS déposés séparément restent tous les deux).
+        const wasLoaded = loadedRef.current;
+        const base = wasLoaded ? data : emptyData();
+        const merged: Record<EntiteKey, EntiteData> = {
+          VILLE: updated.includes('VILLE') ? parsed.VILLE! : base.VILLE,
+          CCAS: updated.includes('CCAS') ? parsed.CCAS! : base.CCAS,
+        };
+        const prevLog = wasLoaded ? log : [];
+        const mergedLog = [...prevLog.filter((l) => !updated.includes(l.entite as EntiteKey)), ...logLines];
+        loadedRef.current = true;
+        setData(merged);
+        setLog(mergedLog);
+        setErrors(wasLoaded ? [...errors, ...errs] : errs);
+        setSource(`Ville ${merged.VILLE.tiers.length} tiers · CCAS ${merged.CCAS.tiers.length} tiers`);
+        setInfo({ kind: 'ok', text: `${updated.join(' + ')} mis à jour · ${arr.length} fichier(s) lus.` });
       }
     } catch (e) {
       setInfo({ kind: 'warn', text: `Lecture impossible : ${(e as Error).message?.slice(0, 120) ?? 'erreur'}` });
@@ -422,6 +579,7 @@ export default function ControleTiers() {
           text: `Aucune donnée reconnue (${lignesIgnorees} ligne(s) ignorée(s)).`,
         });
       }
+      loadedRef.current = true;
       setData((prev) => ({ ...emptyData(), ...prev, ...parsed }));
       setLog([]);
       setErrors([]);
@@ -446,8 +604,19 @@ export default function ControleTiers() {
   }
 
   function resetDemo() {
+    loadedRef.current = false;
     setData(DEMO_JUIN);
     setSource('Exemple — juin 2026');
+    setLog([]);
+    setErrors([]);
+    setInfo(null);
+  }
+
+  /** Vide tout (Ville + CCAS) pour repartir d'une feuille blanche. */
+  function clearAll() {
+    loadedRef.current = true;
+    setData(emptyData());
+    setSource('Aucune donnée');
     setLog([]);
     setErrors([]);
     setInfo(null);
@@ -475,6 +644,9 @@ export default function ControleTiers() {
           </Button>
           <Button variant="ghost" onClick={resetDemo}>
             <RotateCcw className="h-4 w-4" /> Exemple
+          </Button>
+          <Button variant="ghost" onClick={clearAll} className="text-destructive hover:text-destructive">
+            <Trash2 className="h-4 w-4" /> Vider
           </Button>
           <input
             ref={fileRef}
@@ -561,6 +733,18 @@ export default function ControleTiers() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {results.map((r) => (
             <SyntheseCard key={r.entite} res={r} />
+          ))}
+        </div>
+      </div>
+
+      {/* Traçabilité & contrôle des données */}
+      <div>
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-secondary-foreground">
+          <FileSearch className="h-4 w-4 text-primary" /> Traçabilité &amp; contrôle des données
+        </h3>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {results.map((r) => (
+            <DiagnosticCard key={r.entite} res={r} log={log} />
           ))}
         </div>
       </div>

@@ -25,7 +25,7 @@ await build({
   bundle: true,
   logLevel: 'silent',
 });
-const { computeEntite, mergeEntiteData, parseCsv, parseMontant, DEMO_JUIN } = await import(
+const { computeEntite, mergeEntiteData, parseCsv, parseMontant, toCsvModele, DEMO_JUIN } = await import(
   pathToFileURL(outCt).href
 );
 
@@ -45,9 +45,8 @@ const { xCtrl6, xCtrl7, xCtrl9 } = await import(pathToFileURL(outExt).href);
 // Moteur « Comparatif NET par train ».
 const outCmp = join(tmpdir(), `cmp-${Date.now()}.mjs`);
 await build({ entryPoints: ['src/lib/comparatif.ts'], outfile: outCmp, format: 'esm', bundle: true, logLevel: 'silent' });
-const { buildComparatif, applyAffectations, memoriserNouveaux, parseCorrespRows, DEMO_EXTRACTION } = await import(
-  pathToFileURL(outCmp).href,
-);
+const { buildComparatif, applyAffectations, memoriserNouveaux, parseCorrespRows, correspToCsv, DEMO_EXTRACTION } =
+  await import(pathToFileURL(outCmp).href);
 const cmp = buildComparatif(DEMO_EXTRACTION); // sans CORRESP
 const cmpAgent = (mat) => cmp.agents.find((a) => a.matricule === mat);
 const cmpTrain = (lib) => cmp.trains.find((t) => t.lib === lib);
@@ -65,6 +64,19 @@ const correspParsed = parseCorrespRows([
   ['', '', ''],
   ['174704', '17', 'Train Florian'],
 ]);
+// Sécurité M1 : clés dangereuses ignorées (pollution de prototype).
+const correspPol = parseCorrespRows([
+  ['Matricule', 'Train', 'Lib. Train'],
+  ['__proto__', '9', 'X'],
+  ['constructor', '9', 'Y'],
+  ['174611', '15', 'Train Ville Ruth'],
+]);
+// Sécurité M2 : neutralisation d'injection de formules (CSV).
+const csvInj = correspToCsv({ X: { no: '', lib: '=HYPERLINK("http://x")' } });
+const csvCt = toCsvModele({
+  VILLE: { tiers: [{ code: '1', libelle: '=BAD()', valeurs: { C: 10 } }], totaux: {} },
+  CCAS: { tiers: [], totaux: {} },
+});
 const ctVille = computeEntite('VILLE', DEMO_JUIN.VILLE);
 const ctCcas = computeEntite('CCAS', DEMO_JUIN.CCAS);
 // Pire écart absolu J..O sur l'ensemble des tiers (doit valoir 0 sur juin 2026).
@@ -324,6 +336,11 @@ const checks = [
   ['CMP · mémorisé = Train Yasmine', correspMem['999999'].lib, 'Train Yasmine'],
   ['CMP · parse CORRESP (2 lignes)', Object.keys(correspParsed).length, 2],
   ['CMP · parse CORRESP libellé', correspParsed['174611'].lib, 'Train Ville Ruth'],
+  // Sécurité (revue agent)
+  ['SEC M1 · CORRESP ignore clés dangereuses', Object.keys(correspPol).length, 1],
+  ['SEC M1 · pas de pollution Object.prototype', {}.lib, undefined],
+  ['SEC M2 · CSV CORRESP neutralise =formule', csvInj.includes("'=HYPERLINK"), true],
+  ['SEC M2 · CSV Contrôle Tiers neutralise =formule', csvCt.includes("'=BAD()"), true],
   // Import CSV (format compagnon)
   ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
   ['CT parseCsv · tier URSSAF colonne C', ctTierUrssaf.valeurs.C, 925561.32],

@@ -546,21 +546,30 @@ export function parseCsv(text: string): ParseResult {
   return { data, lignesReconnues: reconnues, lignesIgnorees: ignorees };
 }
 
+/** Échappe un champ CSV : neutralise l'injection de formules (= + - @) + quote si besoin. */
+function csvField(v: unknown): string {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[",;\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
 /** Modèle CSV (format compagnon) à partir de données — pour aligner / documenter. */
 export function toCsvModele(d: Record<EntiteKey, EntiteData>): string {
   const fmt = (n: number) => n.toFixed(2);
+  const row = (...f: unknown[]) => f.map(csvField).join(',');
   const lignes: string[] = ['ENTITE,CODE_TIERS,LIBELLE,COLONNE,VALEUR,CONTROLE'];
   (Object.keys(d) as EntiteKey[]).forEach((ent) => {
     d[ent].tiers.forEach((t) => {
       COL_KEYS.forEach((k) => {
         const v = t.valeurs[k];
-        if (isNum(v)) lignes.push(`${ent},${t.code},${t.libelle},${k},${fmt(v)},${COLONNES.find((c) => c.key === k)?.n ?? ''}`);
+        if (isNum(v)) lignes.push(row(ent, t.code, t.libelle, k, fmt(v), COLONNES.find((c) => c.key === k)?.n ?? ''));
       });
     });
     Object.entries(d[ent].totaux).forEach(([k, v]) => {
-      if (isNum(v)) lignes.push(`${ent},_TOTAL_CIRIL,,${k},${fmt(v)},`);
+      if (isNum(v)) lignes.push(row(ent, '_TOTAL_CIRIL', '', k, fmt(v), ''));
     });
-    if (d[ent].titrePasFlag !== undefined) lignes.push(`${ent},_TITRE_PAS,,,${d[ent].titrePasFlag ? 'OUI' : 'NON'},8`);
+    if (d[ent].titrePasFlag !== undefined) lignes.push(row(ent, '_TITRE_PAS', '', '', d[ent].titrePasFlag ? 'OUI' : 'NON', '8'));
   });
   return lignes.join('\n');
 }

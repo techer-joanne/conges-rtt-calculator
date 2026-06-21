@@ -50,7 +50,15 @@ export type Cell = { v: string | number; t: 's' | 'n'; z?: string; s?: Style } |
 export type Row = { cells: Cell[]; bg: string; border?: boolean };
 export type Built = { rows: Row[]; cols: number[]; merges: [number, number, number][] };
 
-export const txt = (v: string | number, s?: Style): Cell => ({ v, t: 's', s });
+/** Anti-injection de formules : neutralise une valeur texte débutant par = + - @ tab CR. */
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
+export const safeText = (v: string): string => (FORMULA_LEAD.test(v) ? `'${v}` : v);
+
+export const txt = (v: string | number, s?: Style): Cell => ({
+  v: typeof v === 'string' ? safeText(v) : v,
+  t: 's',
+  s,
+});
 export const num = (v: number | undefined, s: Style = ST.num): Cell =>
   v === undefined ? txt('', s) : { v, t: 'n', z: EUR, s };
 

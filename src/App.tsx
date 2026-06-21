@@ -63,7 +63,7 @@ const DEFAULT_ANNU: AnnualisationInputs = {
 
 function loadInputs(): Inputs {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (raw) return { ...DEFAULT_INPUTS, ...JSON.parse(raw) };
   } catch {
     /* ignore */
@@ -73,7 +73,7 @@ function loadInputs(): Inputs {
 
 function loadAnnu(): AnnualisationInputs {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_ANNU);
+    const raw = sessionStorage.getItem(STORAGE_KEY_ANNU);
     if (raw) return { ...DEFAULT_ANNU, ...JSON.parse(raw) };
   } catch {
     /* ignore */
@@ -91,7 +91,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
     } catch {
       /* ignore */
     }
@@ -99,7 +99,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_ANNU, JSON.stringify(annuInputs));
+      sessionStorage.setItem(STORAGE_KEY_ANNU, JSON.stringify(annuInputs));
     } catch {
       /* ignore */
     }

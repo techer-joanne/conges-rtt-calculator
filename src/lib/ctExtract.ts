@@ -187,7 +187,7 @@ export function detectEntite(text: string): EntiteKey | '?' {
 
 /** 1 — Génération budgétaire : `Total tiers <code> … <montant>` (DERNIER montant) ; `Total général`. */
 export function xCtrl1(t: string): { tiers: Record<string, number>; total: number | null } {
-  const d: Record<string, number> = {};
+  const d: Record<string, number> = Object.create(null); // null-proto : anti-pollution
   let tg: number | null = null;
   for (const l of t.split('\n')) {
     const m = /[Tt]otal tiers\s+(\d+)/.exec(l);
@@ -200,7 +200,7 @@ export function xCtrl1(t: string): { tiers: Record<string, number>; total: numbe
 
 /** 2 — État des charges : `Total Tiers <code>` = PREMIER montant (avec centimes). PAS absent. */
 export function xCtrl2(t: string): { tiers: Record<string, number>; total: number | null } {
-  const d: Record<string, number> = {};
+  const d: Record<string, number> = Object.create(null); // null-proto : anti-pollution
   for (const l of t.split('\n')) {
     const m = /Total Tiers\s+(\d+)/.exec(l);
     const a = amounts(l);

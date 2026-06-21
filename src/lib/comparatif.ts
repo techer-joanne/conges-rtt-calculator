@@ -99,6 +99,20 @@ export function parseMontant(raw: unknown): number | undefined {
 
 const isNum = (v: unknown): boolean => v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v));
 
+// Sécurité : clés dangereuses (pollution de prototype) à ignorer dans les tables
+// indexées par une valeur issue d'un fichier (matricule).
+const DANGEROUS_KEY = new Set(['__proto__', 'constructor', 'prototype']);
+const safeKey = (k: string) => !DANGEROUS_KEY.has(k);
+
+// Sécurité : neutralise l'injection de formules CSV (valeur débutant par = + - @ tab CR)
+// et échappe les champs contenant un séparateur / guillemet / saut de ligne.
+function csvField(v: unknown): string {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[",;\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
 function numFromLib(lib: string): number | '' {
   const n = norm(lib);
   for (const [k, v] of Object.entries(TRAIN_SEED)) if (norm(v) === n) return Number(k);
@@ -194,8 +208,8 @@ export function resolveTrain(
     const no = Number(noRaw);
     return { no, lib: TRAIN_SEED[no] ?? `Train ${no}`, source: 'extraction' };
   }
-  // 2) filet de sécurité : CORRESP (par matricule)
-  const ce = corresp[matricule];
+  // 2) filet de sécurité : CORRESP (par matricule) — accès protégé
+  const ce = safeKey(matricule) ? corresp[matricule] : undefined;
   if (ce && ce.lib) return { no: ce.no, lib: ce.lib, source: 'corresp' };
   // 3) à affecter
   return { no: '', lib: A_AFFECTER, source: 'aaffecter' };
@@ -308,7 +322,7 @@ export function applyAffectations(res: ComparatifResult, choix: Record<string, s
 
 /** Lit la feuille CORRESP (Matricule | Train n° | Lib. Train) en table matricule→train. */
 export function parseCorrespRows(rows: string[][]): Corresp {
-  const out: Corresp = {};
+  const out: Corresp = Object.create(null);
   if (!rows?.length) return out;
   // En-tête = 1re ligne contenant « matricule » ; sinon on part de 0.
   let hdr = 0;
@@ -321,7 +335,7 @@ export function parseCorrespRows(rows: string[][]): Corresp {
   for (let r = hdr + 1; r < rows.length; r++) {
     const row = rows[r] ?? [];
     const mat = String(row[0] ?? '').trim();
-    if (!mat) continue;
+    if (!mat || !safeKey(mat)) continue;
     const no = isNum(row[1]) ? Number(row[1]) : '';
     const lib = String(row[2] ?? '').trim();
     if (lib) out[mat] = { no, lib };
@@ -333,6 +347,7 @@ export function parseCorrespRows(rows: string[][]): Corresp {
 export function memoriserNouveaux(corresp: Corresp, agents: AgentRow[]): number {
   let n = 0;
   for (const a of agents) {
+    if (!safeKey(a.matricule)) continue;
     if (a.trainLib && a.trainLib !== A_AFFECTER && !corresp[a.matricule]) {
       corresp[a.matricule] = { no: a.trainNo === '' ? numFromLib(a.trainLib) : a.trainNo, lib: a.trainLib };
       n++;
@@ -343,7 +358,8 @@ export function memoriserNouveaux(corresp: Corresp, agents: AgentRow[]): number 
 
 export function correspToCsv(corresp: Corresp): string {
   const lignes = ['Matricule,Train,Lib. Train'];
-  for (const [mat, e] of Object.entries(corresp)) lignes.push(`${mat},${e.no === '' ? '' : e.no},${e.lib}`);
+  for (const [mat, e] of Object.entries(corresp))
+    lignes.push(`${csvField(mat)},${csvField(e.no === '' ? '' : e.no)},${csvField(e.lib)}`);
   return '﻿' + lignes.join('\n');
 }
 

@@ -36,12 +36,12 @@ const META: Record<EntiteKey, { label: string; code: string; icon: typeof Buildi
   CCAS: { label: 'CCAS', code: '004', icon: Landmark },
 };
 const ECARTS: { key: EcartKey; label: string }[] = [
-  { key: 'J', label: 'J = C − D' },
-  { key: 'K', label: 'K = G − C (URSSAF : G − (C+CSG))' },
-  { key: 'L', label: 'L = G − D' },
-  { key: 'M', label: 'M = bloc 50 + régul 56 − journal (PAS)' },
-  { key: 'N', label: 'N = I − C' },
-  { key: 'O', label: 'O = I − D' },
+  { key: 'J', label: 'J — Écart génération budgétaire − état des charges (C − D)' },
+  { key: 'K', label: 'K — Écart bloc 81 − génération budgétaire (G − C ; URSSAF : G − (C+CSG))' },
+  { key: 'L', label: 'L — Écart bloc 81 − état des charges (G − D)' },
+  { key: 'M', label: 'M — Écart bloc 50 − génération budgétaire (tiers 24574 : D + H − F)' },
+  { key: 'N', label: 'N — Écart paie numéraire − génération budgétaire (tiers 342 : I − C)' },
+  { key: 'O', label: 'O — Écart paie numéraire − état des charges (tiers 342 : I − D)' },
 ];
 
 const fmtNum = (v?: number) =>
@@ -321,15 +321,34 @@ export default function ControleApprofondi() {
             </CardContent>
           </Card>
 
-          {/* Légende écarts */}
-          <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            {ECARTS.map((e) => (
-              <span key={e.key}>
-                <span className="font-semibold text-foreground">{e.key}</span> · {e.label}
-              </span>
-            ))}
-            <span className="text-muted-foreground/70">Tous les écarts doivent valoir 0 (hors arrondi PAS).</span>
-          </p>
+          {/* Légende colonnes C→I (montants des fichiers insérés) */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-secondary-foreground">
+              Colonnes C→I — montants des fichiers
+            </p>
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {COLONNES.map((c) => (
+                <span key={c.key}>
+                  <span className="font-semibold text-foreground">{c.key}</span> · {c.label}
+                </span>
+              ))}
+            </p>
+          </div>
+
+          {/* Légende écarts J→O (formules de contrôle) */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-secondary-foreground">
+              Colonnes J→O — écarts à contrôler
+            </p>
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {ECARTS.map((e) => (
+                <span key={e.key}>
+                  <span className="font-semibold text-foreground">{e.key}</span> · {e.label}
+                </span>
+              ))}
+              <span className="text-muted-foreground/70">Tous les écarts doivent valoir 0 (hors arrondi PAS).</span>
+            </p>
+          </div>
         </>
       )}
     </div>

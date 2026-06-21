@@ -28,13 +28,13 @@ export type EcartKey = 'J' | 'K' | 'L' | 'M' | 'N' | 'O';
 export type Statut = 'ok' | 'ko' | 'na';
 
 export const COLONNES: { key: ColKey; n: number; court: string; label: string }[] = [
-  { key: 'C', n: 1, court: 'Budgétaire', label: 'Génération budgétaire' },
-  { key: 'D', n: 2, court: 'État charges', label: 'État des charges' },
-  { key: 'E', n: 8, court: 'Décompte PAS', label: 'Décompte PAS' },
-  { key: 'F', n: 9, court: 'Journal PAS', label: 'Journal RUB 1691/1694/1697' },
-  { key: 'G', n: 6, court: 'Bloc 81', label: 'DSN bloc 81 (cotisations)' },
-  { key: 'H', n: 7, court: 'Bloc 50', label: 'DSN bloc 50 (PAS)' },
-  { key: 'I', n: 5, court: 'Trésorerie', label: 'Paies numéraires / Trésorerie' },
+  { key: 'C', n: 1, court: 'Génération budgétaire', label: '1ᵉʳ contrôle — Génération budgétaire' },
+  { key: 'D', n: 2, court: 'État des charges', label: '2ᵉ contrôle — État des charges' },
+  { key: 'E', n: 8, court: 'Décompte PAS', label: '8ᵉ contrôle — Décompte du PAS arrondi (tiers 24574)' },
+  { key: 'F', n: 9, court: 'Prélèvement source', label: '9ᵉ contrôle — Prélèvement à la source / RUB 1697 (tiers 24587)' },
+  { key: 'G', n: 6, court: 'DSN bloc 81', label: '6ᵉ contrôle — DSN bloc 81' },
+  { key: 'H', n: 7, court: 'DSN bloc 50', label: '7ᵉ contrôle — DSN bloc 50 (avant régul. bloc 56)' },
+  { key: 'I', n: 5, court: 'Paies numéraires', label: '5ᵉ contrôle — Paies numéraires' },
 ];
 const COL_KEYS = COLONNES.map((c) => c.key);
 
@@ -162,6 +162,37 @@ export function mergeFixedTiers(entite: EntiteKey, data: EntiteData): TierLigne[
     if (!fixedCodes.has(t.code)) out.push({ ...t, valeurs: { ...t.valeurs } });
   }
   return out;
+}
+
+/**
+ * Fusionne deux jeux de données d'une MÊME entité (cumul des dépôts fichier par
+ * fichier) : on combine les valeurs par Code Tiers × colonne, les totaux par
+ * colonne et les drapeaux. Les valeurs du dépôt entrant priment, mais les
+ * colonnes déjà présentes (déposées avant) sont CONSERVÉES — déposer le
+ * budgétaire puis le bloc 50 garde les deux contrôles.
+ */
+export function mergeEntiteData(base: EntiteData, incoming: EntiteData): EntiteData {
+  const byCode = new Map<string, TierLigne>();
+  for (const t of base.tiers) {
+    byCode.set(t.code, { code: t.code, libelle: t.libelle, valeurs: { ...t.valeurs } });
+  }
+  for (const t of incoming.tiers) {
+    const ex = byCode.get(t.code);
+    if (ex) {
+      ex.valeurs = { ...ex.valeurs, ...t.valeurs };
+      if (t.libelle && !ex.libelle) ex.libelle = t.libelle;
+    } else {
+      byCode.set(t.code, { code: t.code, libelle: t.libelle, valeurs: { ...t.valeurs } });
+    }
+  }
+  return {
+    tiers: [...byCode.values()],
+    totaux: { ...base.totaux, ...incoming.totaux },
+    titrePasFlag: incoming.titrePasFlag ?? base.titrePasFlag,
+    charges: incoming.charges ?? base.charges,
+    paie: incoming.paie ?? base.paie,
+    regulPas: incoming.regulPas ?? base.regulPas,
+  };
 }
 
 /** Calcule écarts J..O par tiers, réconciliations clés (§8), totaux et statut global. */

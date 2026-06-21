@@ -25,7 +25,9 @@ await build({
   bundle: true,
   logLevel: 'silent',
 });
-const { computeEntite, parseCsv, parseMontant, DEMO_JUIN } = await import(pathToFileURL(outCt).href);
+const { computeEntite, mergeEntiteData, parseCsv, parseMontant, DEMO_JUIN } = await import(
+  pathToFileURL(outCt).href
+);
 
 // Extracteurs tableur (port de companion.py). pdfjs/xlsx restent externes : les
 // fonctions xCtrl6/7/9 testées ici sont pures (aucun import paresseux exécuté).
@@ -119,6 +121,21 @@ const bloc81Rows = [
   ['001', 'CNRACL', 'cnracl', '380018.77', 'x'],
   ['001', 'AUTRE', 'hors périmètre', '100.00', 'x'],
 ];
+
+// CUMUL fichier par fichier : déposer le budgétaire (C) puis le bloc 50 (H) /
+// bloc 81 (G) doit CONSERVER les contrôles précédents (et non les remplacer).
+const cumulMerge = mergeEntiteData(
+  { tiers: [{ code: '11788', libelle: 'URSSAF', valeurs: { C: 100 } }], totaux: { C: 100 } },
+  {
+    tiers: [
+      { code: '11788', libelle: 'URSSAF', valeurs: { G: 100 } },
+      { code: '24574', libelle: 'PAS', valeurs: { H: 50 } },
+    ],
+    totaux: { E: 50 },
+  },
+);
+const cumulUrssaf = cumulMerge.tiers.find((t) => t.code === '11788');
+const cumulPas = cumulMerge.tiers.find((t) => t.code === '24574');
 
 const round2 = (x) => Math.round(x * 100) / 100;
 const base = {
@@ -259,6 +276,12 @@ const checks = [
   ['CT extract bloc 81 · URSSAF', xCtrl6(bloc81Rows).ops.URSSAF, 925561.32],
   ['CT extract bloc 81 · CNRACL', xCtrl6(bloc81Rows).ops.CNRACL, 380018.77],
   ['CT extract bloc 81 · AUTRE exclu', xCtrl6(bloc81Rows).ops.AUTRE, undefined],
+  // Cumul fichier par fichier (mergeEntiteData) — on conserve les contrôles précédents
+  ['CT cumul · C conservé (dépôt 1)', cumulUrssaf.valeurs.C, 100],
+  ['CT cumul · G ajouté (dépôt 2, même tiers)', cumulUrssaf.valeurs.G, 100],
+  ['CT cumul · nouveau tiers PAS (H)', cumulPas.valeurs.H, 50],
+  ['CT cumul · totaux fusionnés (C)', cumulMerge.totaux.C, 100],
+  ['CT cumul · totaux fusionnés (E)', cumulMerge.totaux.E, 50],
   // Import CSV (format compagnon)
   ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
   ['CT parseCsv · tier URSSAF colonne C', ctTierUrssaf.valeurs.C, 925561.32],

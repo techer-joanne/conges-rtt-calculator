@@ -19,6 +19,7 @@ import {
 import { fmtEuro } from '../lib/calc';
 import {
   computeEntite,
+  mergeEntiteData,
   parseCsv,
   toCsvModele,
   DEMO_JUIN,
@@ -172,12 +173,12 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
 /* --------------------------- Détail (matrice) --------------------------- */
 
 const ECARTS_META: { key: 'J' | 'K' | 'L' | 'M' | 'N' | 'O'; label: string }[] = [
-  { key: 'J', label: 'J = C − D (budgétaire vs état des charges)' },
-  { key: 'K', label: 'K = G − C (bloc 81 vs budgétaire)' },
-  { key: 'L', label: 'L = G − D (bloc 81 vs état des charges)' },
-  { key: 'M', label: 'M = bloc 50 + régul 56 − journal (PAS)' },
-  { key: 'N', label: 'N = I − C (trésorerie vs budgétaire)' },
-  { key: 'O', label: 'O = I − D (trésorerie vs état des charges)' },
+  { key: 'J', label: 'J — Écart génération budgétaire − état des charges (C − D)' },
+  { key: 'K', label: 'K — Écart bloc 81 − génération budgétaire (G − C)' },
+  { key: 'L', label: 'L — Écart bloc 81 − état des charges (G − D)' },
+  { key: 'M', label: 'M — Écart bloc 50 − génération budgétaire (tiers 24574 : D + H − F)' },
+  { key: 'N', label: 'N — Écart paie numéraire − génération budgétaire (tiers 342 : I − C)' },
+  { key: 'O', label: 'O — Écart paie numéraire − état des charges (tiers 342 : I − D)' },
 ];
 
 // La matrice détaillée (valeurs C→I + écarts J→O) vit désormais dans l'onglet
@@ -232,9 +233,8 @@ function DiagnosticCard({ res, log }: { res: EntiteResultat; log: LogLine[] }) {
   const Icon = meta.icon;
   const lignesEnt = log.filter((l) => l.entite === res.entite && l.controle > 0);
   const fichierParCtrl = new Map<number, string>();
-  lignesEnt.forEach((l) => {
-    if (!fichierParCtrl.has(l.controle)) fichierParCtrl.set(l.controle, l.name);
-  });
+  // Le dernier dépôt pour un contrôle l'emporte (cumul fichier par fichier).
+  lignesEnt.forEach((l) => fichierParCtrl.set(l.controle, l.name));
   const found = fichierParCtrl.size;
   const manquants = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => !fichierParCtrl.has(n));
   const anomReco = res.reconciliations.filter((r) => r.statut === 'ko');
@@ -409,22 +409,32 @@ export default function ControleTiers() {
           text: 'Aucune valeur extraite — vérifiez que les fichiers sont bien les éditions CIRIL attendues.',
         });
       } else {
-        // CUMUL : on remplace seulement les entités présentes dans ce dépôt,
-        // on conserve l'autre (Ville + CCAS déposés séparément restent tous les deux).
+        // CUMUL fichier par fichier : on AJOUTE les contrôles du dépôt aux données
+        // déjà chargées (fusion par Code Tiers × colonne), pour Ville comme CCAS.
+        // Déposer le budgétaire puis le bloc 50 conserve les deux ; l'autre entité
+        // est préservée. Une même colonne re-déposée est mise à jour.
         const wasLoaded = loadedRef.current;
         const base = wasLoaded ? data : emptyData();
         const merged: Record<EntiteKey, EntiteData> = {
-          VILLE: updated.includes('VILLE') ? parsed.VILLE! : base.VILLE,
-          CCAS: updated.includes('CCAS') ? parsed.CCAS! : base.CCAS,
+          VILLE: updated.includes('VILLE') ? mergeEntiteData(base.VILLE, parsed.VILLE!) : base.VILLE,
+          CCAS: updated.includes('CCAS') ? mergeEntiteData(base.CCAS, parsed.CCAS!) : base.CCAS,
         };
+        // Journal de traçabilité : on cumule les dépôts en dédupliquant
+        // (même fichier + même entité + même contrôle).
         const prevLog = wasLoaded ? log : [];
-        const mergedLog = [...prevLog.filter((l) => !updated.includes(l.entite as EntiteKey)), ...logLines];
+        const seen = new Set<string>();
+        const mergedLog = [...prevLog, ...logLines].filter((l) => {
+          const k = `${l.name}|${l.entite}|${l.controle}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
         loadedRef.current = true;
         setData(merged);
         setLog(mergedLog);
         setErrors(wasLoaded ? [...errors, ...errs] : errs);
         setSource(`Ville ${merged.VILLE.tiers.length} tiers · CCAS ${merged.CCAS.tiers.length} tiers`);
-        setInfo({ kind: 'ok', text: `${updated.join(' + ')} mis à jour · ${arr.length} fichier(s) lus.` });
+        setInfo({ kind: 'ok', text: `${updated.join(' + ')} cumulé(s) · ${arr.length} fichier(s) ajouté(s).` });
       }
     } catch (e) {
       setInfo({ kind: 'warn', text: `Lecture impossible : ${(e as Error).message?.slice(0, 120) ?? 'erreur'}` });

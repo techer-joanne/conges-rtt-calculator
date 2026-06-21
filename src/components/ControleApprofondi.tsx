@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ScanSearch,
   Building2,
@@ -8,6 +8,8 @@ import {
   XCircle,
   MinusCircle,
   AlertTriangle,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { fmtEuro } from '../lib/calc';
 import {
@@ -27,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 const STORAGE_KEY = 'conges-rtt-trappes:ct:v4';
 const NUM = "font-['Space_Grotesk'] tabular-nums";
@@ -116,6 +119,17 @@ function BouclageCard({
 export default function ControleApprofondi() {
   const [data] = useState<Record<EntiteKey, EntiteData>>(loadData);
   const [entite, setEntite] = useState<EntiteKey>('VILLE');
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // Échap quitte le plein écran.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
   const res: EntiteResultat = useMemo(() => computeEntite(entite, data[entite] ?? { tiers: [], totaux: {} }), [entite, data]);
 
@@ -233,29 +247,56 @@ export default function ControleApprofondi() {
           )}
 
           {/* Matrice approfondie : valeurs C→I + écarts J→O explicites */}
-          <Card className="print-clean overflow-hidden">
+          <Card
+            className={cn(
+              'print-clean overflow-hidden',
+              fullscreen && 'fixed inset-0 z-[60] m-0 flex flex-col rounded-none border-0',
+            )}
+          >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b">
               <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
                 Matrice — {META[entite].label} · valeurs &amp; écarts par tiers
               </CardTitle>
-              <Badge variant={res.statut === 'ok' ? 'success' : res.statut === 'ko' ? 'destructive' : 'secondary'}>
-                {res.nbAnomalies} anomalie(s)
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant={res.statut === 'ok' ? 'success' : res.statut === 'ko' ? 'destructive' : 'secondary'}>
+                  {res.nbAnomalies} anomalie(s)
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="no-print h-7 gap-1.5 px-2 text-xs"
+                  onClick={() => setFullscreen((v) => !v)}
+                  title={fullscreen ? 'Quitter le plein écran (Échap)' : 'Vue plein écran'}
+                >
+                  {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                  {fullscreen ? 'Quitter' : 'Plein écran'}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className={cn('p-0', fullscreen && 'flex-1 overflow-auto')}>
               <div className="w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
                       <TableHead className="text-left">Tiers</TableHead>
                       {COLONNES.map((c) => (
-                        <TableHead key={c.key} className="text-right" title={`${c.label} (contrôle ${c.n})`}>
-                          {c.key}
+                        <TableHead key={c.key} className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted underline-offset-4">{c.key}</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">{c.label}</TooltipContent>
+                          </Tooltip>
                         </TableHead>
                       ))}
                       {ECARTS.map((e) => (
-                        <TableHead key={e.key} className="text-right text-amber-300/80" title={e.label}>
-                          {e.key}
+                        <TableHead key={e.key} className="text-right text-amber-300/80">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted underline-offset-4">{e.key}</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">{e.label}</TooltipContent>
+                          </Tooltip>
                         </TableHead>
                       ))}
                       <TableHead className="w-10 text-center">État</TableHead>
@@ -264,10 +305,23 @@ export default function ControleApprofondi() {
                   <TableBody>
                     {res.lignes.map((l) => {
                       const vide = COLONNES.every((c) => l.valeurs[c.key] === undefined);
+                      const ko = l.statut === 'ko' && !l.arrondi;
+                      const ecartsKo = ECARTS.filter((e) => {
+                        const v = l.ecarts[e.key];
+                        return v !== undefined && Math.abs(v) > TOLERANCE;
+                      });
                       return (
-                        <TableRow key={l.code} className={cn(vide && 'opacity-40')}>
+                        <TableRow
+                          key={l.code}
+                          className={cn(
+                            vide && 'opacity-40',
+                            ko && 'bg-destructive/10 hover:bg-destructive/20',
+                          )}
+                        >
                           <TableCell className="whitespace-nowrap">
-                            <span className="font-semibold text-foreground">{l.libelle || l.code}</span>
+                            <span className={cn('font-semibold', ko ? 'text-destructive' : 'text-foreground')}>
+                              {l.libelle || l.code}
+                            </span>
                             <span className="ml-1.5 text-[10px] text-muted-foreground">{l.code}</span>
                           </TableCell>
                           {COLONNES.map((c) => (
@@ -280,14 +334,14 @@ export default function ControleApprofondi() {
                           ))}
                           {ECARTS.map((e) => {
                             const v = l.ecarts[e.key];
-                            const ko = v !== undefined && Math.abs(v) > TOLERANCE && !l.arrondi;
+                            const koCell = v !== undefined && Math.abs(v) > TOLERANCE && !l.arrondi;
                             return (
                               <TableCell
                                 key={e.key}
                                 className={cn(
                                   'text-right text-xs',
                                   NUM,
-                                  v === undefined ? 'text-muted-foreground/25' : ko ? 'font-bold text-destructive' : 'text-muted-foreground',
+                                  v === undefined ? 'text-muted-foreground/25' : koCell ? 'font-bold text-destructive' : 'text-muted-foreground',
                                 )}
                               >
                                 {fmtNum(v)}
@@ -296,7 +350,45 @@ export default function ControleApprofondi() {
                           })}
                           <TableCell className="text-center">
                             {l.arrondi ? (
-                              <AlertTriangle className="mx-auto h-4 w-4 text-amber-300" />
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-help">
+                                    <AlertTriangle className="mx-auto h-4 w-4 text-amber-300" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p className="font-semibold">Titre d'arrondi PAS</p>
+                                  <p className="text-muted-foreground">
+                                    Écart de centimes attendu sur le prélèvement à la source → titre d'arrondi à
+                                    émettre, ce n'est pas une anomalie.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : ko ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-help">
+                                    <XCircle className="mx-auto h-4 w-4 text-destructive" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-sm">
+                                  <p className="font-semibold text-destructive">
+                                    Anomalie — {l.libelle || l.code} ({l.code})
+                                  </p>
+                                  <ul className="mt-1 space-y-0.5">
+                                    {ecartsKo.map((e) => (
+                                      <li key={e.key}>
+                                        <span className="font-semibold">{e.key}</span> {e.label.replace(/^[A-O] — /, '')} ={' '}
+                                        <span className="font-semibold text-destructive">{fmtEuro(l.ecarts[e.key] ?? 0)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <p className="mt-1.5 text-muted-foreground">
+                                    À résoudre : les montants comparés par cette formule doivent être égaux entre les
+                                    fichiers concernés. Vérifiez le contrôle correspondant pour ce tiers.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
                             ) : (
                               <StatutIcon statut={l.statut} className="mx-auto h-4 w-4" />
                             )}

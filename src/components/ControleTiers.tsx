@@ -33,7 +33,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-const STORAGE_KEY = 'conges-rtt-trappes:ct:v3';
+const STORAGE_KEY = 'conges-rtt-trappes:ct:v4';
 const NUM = "font-['Space_Grotesk'] tabular-nums";
 const ENTITES: EntiteKey[] = ['VILLE', 'CCAS'];
 const ENTITE_META: Record<EntiteKey, { label: string; code: string; icon: typeof Building2 }> = {
@@ -77,7 +77,7 @@ const aDesDonnees = (ed?: EntiteData) =>
 
 function loadData(): Record<EntiteKey, EntiteData> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Partial<Record<EntiteKey, EntiteData>>;
       if (Array.isArray(p.VILLE?.tiers) && Array.isArray(p.CCAS?.tiers)) {
@@ -378,7 +378,7 @@ export default function ControleTiers() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       /* ignore */
     }

@@ -99,14 +99,19 @@ const bloc50Rows = [
   ['102', 'B', 'b', 'T', '56337.82', '1500.00', '3.60'],
   ['', 'Total Établissement', '', '', '68683.49', '', '5.40'],
 ];
-// Journal : « Mt Sal rub » en idx 4 (≠ ancien idx 9) ; rubriques 1691/1694/1697.
+// Journal (structure réelle CCAS) : en-tête en ligne 3, « Taux Sal rub » (idx 8)
+// JUSTE AVANT « Mt Sal rub » (idx 9) — le piège qui sortait 42,30 € (somme des taux)
+// au lieu du vrai PAS. Rubriques 1691/1694/1697.
 const journalRows = [
-  ['Rubrique', 'Libellé', 'Base', 'Mt Pat rub', 'Mt Sal rub', 'Sens'],
-  ['1691', 'PAS', '0', '0', '-40000.00', 'D'],
-  ['1694', 'PAS', '0', '0', '-20000.00', 'D'],
-  ['1697', 'PAS', '0', '0', '-8624.47', 'D'],
-  ['2100', 'Autre', '0', '0', '-999.99', 'D'],
+  ['Liste des agents pour une rubrique - Mai 2026', '', '', '', '', '', '', '', '', '', '', ''],
+  ['Critère(s) de sélection:', '', '', '', '', '', '', '', '', '', '', ''],
+  ['Numéro de rubrique parmi 1691,1694,1697', '', '', '', '', '', '', '', '', '', '', ''],
+  ['Etablissement:', '', '', '', 'Agent:', '', 'Position:', 'Base rub', 'Taux Sal rub', 'Mt Sal rub', 'Taux Emp rub', 'Mt Emp rub'],
+  ['004', 'CCAS', '1691', 'Impôt', '00475010', 'BOCCARA', 'NTCONP', '2520.93', '5.3', '-133.61', '0', '0'],
+  ['004', 'CCAS', '1694', 'Impôt', '00400182', 'BUON', 'NTCDI', '3277.88', '8.2', '-268.79', '0', '0'],
+  ['004', 'CCAS', '1697', 'Impôt', '00400119', 'CHRIFI', 'TITCNR', '2583.49', '5.3', '-136.92', '0', '0'],
 ];
+// |(-133.61)+(-268.79)+(-136.92)| = 539.32 (et SURTOUT pas 18,80 = somme des taux)
 // Bloc 81 : « Code OPS » idx 1, « 004 - Montant cotisation » idx 3 (≠ anciens idx 6/11).
 const bloc81Rows = [
   ['Etab', 'Code OPS', 'Libellé', '004 - Montant cotisation', 'Autre'],
@@ -250,7 +255,7 @@ const checks = [
   ['CT CCAS réel · 0 anomalie', maiCcasOk.nbAnomalies, 0],
   // CORRECTIF — extraction par intitulé de colonne (bloc 50 / journal / bloc 81)
   ['CT extract bloc 50 (Total Établissement)', xCtrl7(bloc50Rows).total, 68683.49],
-  ['CT extract journal (Mt Sal rub, |somme|)', xCtrl9(journalRows).total, 68624.47],
+  ['CT extract journal (Mt Sal rub, pas « Taux Sal rub »)', xCtrl9(journalRows).total, 539.32],
   ['CT extract bloc 81 · URSSAF', xCtrl6(bloc81Rows).ops.URSSAF, 925561.32],
   ['CT extract bloc 81 · CNRACL', xCtrl6(bloc81Rows).ops.CNRACL, 380018.77],
   ['CT extract bloc 81 · AUTRE exclu', xCtrl6(bloc81Rows).ops.AUTRE, undefined],

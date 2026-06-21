@@ -312,7 +312,12 @@ export function xCtrl8(t: string): {
  * 1691/1694/1697 n'importe où sur la ligne. Repli idx 9 si l'en-tête est absent.
  */
 export function xCtrl9(rows: string[][], jcolFallback = 9): { total: number } {
-  const hit = findCol(rows, (h) => h.includes('mt sal rub') || (h.includes('sal') && h.includes('rub')));
+  // « Mt Sal rub » par intitulé. NE PAS confondre avec « Taux Sal rub » (la colonne
+  // du taux, placée juste avant) : le repli large exclut donc « taux ».
+  const hit = findCol(
+    rows,
+    (h) => h.includes('mt sal rub') || (h.includes('sal') && h.includes('rub') && !h.includes('taux')),
+  );
   const col = hit ? hit.col : jcolFallback;
   const headerRow = hit ? hit.row : -1;
   const RUBS = new Set(['1691', '1694', '1697']);

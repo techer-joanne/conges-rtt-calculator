@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Info,
   FileText,
+  FileSpreadsheet,
   Loader2,
   Trash2,
   FileSearch,
@@ -476,6 +477,18 @@ export default function ControleTiers() {
     }
   }
 
+  /** Export Excel direct : classeur .xlsx prêt à l'emploi (Synthèse + Détail
+   *  Ville/CCAS), déjà rempli et contrôlé — sans macro ni import CSV. */
+  async function exportXlsx() {
+    try {
+      const { exportControleXlsx } = await import('../lib/ctExport');
+      await exportControleXlsx(results);
+      setInfo({ kind: 'ok', text: 'Classeur Excel généré (controle_tiers.xlsx).' });
+    } catch (e) {
+      setInfo({ kind: 'warn', text: `Export Excel impossible : ${(e as Error).message?.slice(0, 100) ?? 'erreur'}` });
+    }
+  }
+
   /** Pont vers Excel : exporte les données courantes au format compagnon
    *  (import_controle_tiers.csv) ré-injectable dans le .xlsm via la macro. */
   function exportCsv() {
@@ -521,6 +534,9 @@ export default function ControleTiers() {
         <div className="no-print flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => fileRef.current?.click()}>
             <Upload className="h-4 w-4" /> Lire des fichiers CIRIL
+          </Button>
+          <Button variant="outline" onClick={exportXlsx}>
+            <FileSpreadsheet className="h-4 w-4" /> Exporter Excel
           </Button>
           <Button variant="ghost" onClick={() => csvRef.current?.click()}>
             <FileText className="h-4 w-4" /> Importer un CSV

@@ -17,7 +17,7 @@ import {
 /** Regroupement des onglets en deux sections, pour une vraie ergonomie « app ». */
 const GROUPS: { label: string; ids: TabId[] }[] = [
   { label: 'Pilotage', ids: ['dashboard', 'calculateur', 'depart', 'annualisation'] },
-  { label: 'Paie', ids: ['controle-tiers'] },
+  { label: 'Paie', ids: ['controle-tiers', 'controle-approfondi'] },
   { label: 'Références', ids: ['bareme', 'notice'] },
 ];
 

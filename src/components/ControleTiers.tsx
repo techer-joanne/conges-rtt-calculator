@@ -22,7 +22,6 @@ import {
   parseCsv,
   toCsvModele,
   DEMO_JUIN,
-  COLONNES,
   type EntiteKey,
   type EntiteData,
   type EntiteResultat,
@@ -32,7 +31,6 @@ import { cn } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 const STORAGE_KEY = 'conges-rtt-trappes:ct:v3';
@@ -182,139 +180,8 @@ const ECARTS_META: { key: 'J' | 'K' | 'L' | 'M' | 'N' | 'O'; label: string }[] =
   { key: 'O', label: 'O = I − D (trésorerie vs état des charges)' },
 ];
 
-function EcartCell({ res }: { res: EntiteResultat['lignes'][number] }) {
-  const keys = ECARTS_META.filter((m) => res.ecarts[m.key] !== undefined);
-  if (keys.length === 0) {
-    return <span className="text-muted-foreground/40">·</span>;
-  }
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className={cn(
-            'cursor-help',
-            res.statut === 'ko' ? 'text-destructive' : res.arrondi ? 'text-amber-300' : 'text-muted-foreground',
-          )}
-        >
-          {res.ecart === undefined ? '·' : fmtNum(res.ecart)}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>
-        <div className="space-y-0.5">
-          {keys.map((m) => (
-            <div key={m.key} className="flex justify-between gap-3">
-              <span>{m.label}</span>
-              <span className={cn(NUM, Math.abs(res.ecarts[m.key]!) > 0.01 ? 'text-amber-300' : '')}>
-                {fmtNum(res.ecarts[m.key])}
-              </span>
-            </div>
-          ))}
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function DetailCard({ res }: { res: EntiteResultat }) {
-  const meta = ENTITE_META[res.entite];
-  return (
-    <Card className="print-clean overflow-hidden">
-      <CardHeader className="flex flex-row items-center gap-2 space-y-0 border-b">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <ShieldCheck className="h-4 w-4" />
-        </span>
-        <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
-          Détail {meta.label} — rapprochement par Code Tiers
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="w-full overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="text-left">Tiers</TableHead>
-                {COLONNES.map((c) => (
-                  <TableHead key={c.key} className="text-right" title={`${c.key} — ${c.label} (contrôle ${c.n})`}>
-                    {c.court}
-                  </TableHead>
-                ))}
-                <TableHead className="text-right" title="Écart J..O — survolez pour le détail">
-                  Écart
-                </TableHead>
-                <TableHead className="w-10 text-center">État</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {res.lignes.map((l) => {
-                const vide = COLONNES.every((c) => l.valeurs[c.key] === undefined);
-                return (
-                  <TableRow key={l.code} className={cn(vide && 'opacity-50')}>
-                    <TableCell className="whitespace-nowrap">
-                      <span className="font-semibold text-foreground">{l.libelle || l.code}</span>
-                      <span className="ml-1.5 text-[10px] text-muted-foreground">{l.code}</span>
-                    </TableCell>
-                    {COLONNES.map((c) => (
-                      <TableCell
-                        key={c.key}
-                        className={cn(
-                          'text-right text-xs',
-                          NUM,
-                          l.valeurs[c.key] === undefined ? 'text-muted-foreground/40' : 'text-foreground',
-                        )}
-                      >
-                        {fmtNum(l.valeurs[c.key])}
-                      </TableCell>
-                    ))}
-                    <TableCell className={cn('text-right text-xs font-bold', NUM)}>
-                      <EcartCell res={l} />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {l.arrondi ? (
-                        <AlertTriangle className="mx-auto h-4 w-4 text-amber-300" />
-                      ) : (
-                        <StatutIcon statut={l.statut} className="mx-auto h-4 w-4" />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-
-              {/* TOTAL FICHIER CIRIL */}
-              {Object.keys(res.totaux).length > 0 && (
-                <TableRow className="border-t-2 border-border bg-muted/40 font-bold hover:bg-muted/40">
-                  <TableCell className="whitespace-nowrap text-foreground">Total fichier CIRIL</TableCell>
-                  {COLONNES.map((c) => (
-                    <TableCell key={c.key} className={cn('text-right text-xs text-foreground', NUM)}>
-                      {fmtNum(res.totaux[c.key])}
-                    </TableCell>
-                  ))}
-                  <TableCell />
-                  <TableCell />
-                </TableRow>
-              )}
-
-              {/* Bouclage PAIE + CHARGES = budgétaire */}
-              {res.totalPaie !== undefined && res.totalCharges !== undefined && (
-                <TableRow className="bg-muted/20 hover:bg-muted/20">
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground" colSpan={COLONNES.length + 1}>
-                    Bouclage : Paie ({fmtNum(res.totalPaie)}) + Charges ({fmtNum(res.totalCharges)}) ={' '}
-                    <span className={cn('font-semibold', NUM)}>{fmtNum(res.totalCiril)}</span> = budgétaire
-                    {res.bouclage !== undefined && (
-                      <span className="ml-1 text-muted-foreground">· écart {fmtNum(res.bouclage)}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <StatutIcon statut={res.bouclage === undefined ? 'na' : res.bouclage <= 0.01 ? 'ok' : 'ko'} className="mx-auto h-4 w-4" />
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// La matrice détaillée (valeurs C→I + écarts J→O) vit désormais dans l'onglet
+// « Contrôle approfondi » (ControleApprofondi.tsx) pour garder cet onglet épuré.
 
 const EXT_OK = /\.(pdf|xlsx|xlsm|slk|csv)$/i;
 
@@ -747,21 +614,6 @@ export default function ControleTiers() {
             <DiagnosticCard key={r.entite} res={r} log={log} />
           ))}
         </div>
-      </div>
-
-      {/* Détail (matrice par Code Tiers) */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">Détail des 9 contrôles</h3>
-        {results.map((r) => (
-          <DetailCard key={r.entite} res={r} />
-        ))}
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          {COLONNES.map((c) => (
-            <span key={c.key}>
-              <span className="font-semibold text-foreground">{c.court}</span> = {c.label} (contrôle {c.n})
-            </span>
-          ))}
-        </p>
       </div>
 
       {/* Note */}

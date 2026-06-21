@@ -39,7 +39,7 @@ export const COLONNES: { key: ColKey; n: number; court: string; label: string }[
 const COL_KEYS = COLONNES.map((c) => c.key);
 
 /** Paramétrage par entité (codes Tiers — cf. OPS2CODE du compagnon). */
-const PARAM: Record<EntiteKey, { pas: string; treso: string; urssaf: string; csg: string; ops: string[] }> = {
+export const PARAM: Record<EntiteKey, { pas: string; treso: string; urssaf: string; csg: string; ops: string[] }> = {
   VILLE: { pas: '24574', treso: '342', urssaf: '11788', csg: '11789', ops: ['10937', '10938', '11788', '11837', '11838'] },
   CCAS: { pas: '24574', treso: '342', urssaf: '1467', csg: '1468', ops: ['1348', '1467', '1479', '329'] },
 };

@@ -310,6 +310,48 @@ function DetailCard({ res }: { res: EntiteResultat }) {
   );
 }
 
+const EXT_OK = /\.(pdf|xlsx|xlsm|slk|csv)$/i;
+
+/** Lit récursivement un FileSystemEntry (fichier ou dossier déposé). */
+async function readEntry(entry: any): Promise<File[]> {
+  if (!entry) return [];
+  if (entry.isFile) {
+    return new Promise((res) => entry.file((f: File) => res([f]), () => res([])));
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const readBatch = (): Promise<any[]> =>
+      new Promise((res) => reader.readEntries((es: any[]) => res(es), () => res([])));
+    const out: File[] = [];
+    let batch = await readBatch();
+    while (batch.length) {
+      for (const e of batch) out.push(...(await readEntry(e)));
+      batch = await readBatch();
+    }
+    return out;
+  }
+  return [];
+}
+
+/**
+ * Récupère les fichiers d'un dépôt, en gérant les DOSSIERS déposés
+ * (Extraction VILLE / CCAS). Les entries sont capturées de façon synchrone.
+ */
+async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
+  const entries: any[] = [];
+  if (dt.items && dt.items.length) {
+    for (let i = 0; i < dt.items.length; i++) {
+      const e = (dt.items[i] as any).webkitGetAsEntry?.();
+      if (e) entries.push(e);
+    }
+  }
+  if (entries.length === 0) return Array.from(dt.files).filter((f) => EXT_OK.test(f.name));
+  const out: File[] = [];
+  for (const e of entries) out.push(...(await readEntry(e)));
+  const filtered = out.filter((f) => EXT_OK.test(f.name));
+  return filtered.length ? filtered : Array.from(dt.files).filter((f) => EXT_OK.test(f.name));
+}
+
 /* ------------------------------ Onglet ------------------------------ */
 
 export default function ControleTiers() {
@@ -334,7 +376,7 @@ export default function ControleTiers() {
   const results = useMemo(() => ENTITES.map((e) => computeEntite(e, data[e] ?? { tiers: [], totaux: {} })), [data]);
 
   /** Chemin PRINCIPAL : lecture des fichiers bruts CIRIL (PDF / xlsx / xlsm / slk). */
-  async function handleRawFiles(files: FileList | null) {
+  async function handleRawFiles(files: FileList | File[] | null) {
     const arr = files ? Array.from(files) : [];
     if (arr.length === 0) return;
     // Un dépôt 100 % CSV ⇒ on bascule sur l'import CSV (chemin secondaire).
@@ -453,7 +495,7 @@ export default function ControleTiers() {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          handleRawFiles(e.dataTransfer.files);
+          filesFromDataTransfer(e.dataTransfer).then((files) => handleRawFiles(files));
         }}
         onClick={() => !busy && fileRef.current?.click()}
         className={cn(
@@ -464,10 +506,13 @@ export default function ControleTiers() {
       >
         {busy ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <Upload className="h-5 w-5 text-primary" />}
         <p className="text-sm font-semibold text-foreground">
-          {busy ? 'Lecture en cours…' : 'Glissez-déposez les éditions CIRIL (PDF, xlsx, xlsm, slk)'}
+          {busy
+            ? 'Lecture en cours…'
+            : 'Glissez les dossiers Extraction VILLE / CCAS (ou des fichiers PDF, xlsx, xlsm, slk)'}
         </p>
         <p className="text-xs text-muted-foreground">
-          Les 9 contrôles sont reconnus par leur contenu — lecture 100 % locale (aucun envoi serveur).
+          Dépôt de dossiers entiers accepté. Les 9 contrôles sont reconnus par leur contenu — lecture 100 % locale
+          (aucun envoi serveur).
         </p>
         {info && (
           <p className={cn('mt-1 text-xs font-medium', info.kind === 'ok' ? 'text-success' : 'text-amber-300')}>{info.text}</p>

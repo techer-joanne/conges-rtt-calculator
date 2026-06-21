@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ScanSearch,
   Building2,
@@ -113,6 +114,19 @@ function BouclageCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Plein écran réel : on PORTALISE vers <body> pour échapper au conteneur de la
+ * sidebar shadcn (qui a un `transform` → un enfant `position:fixed` y resterait
+ * piégé au lieu de couvrir tout l'écran).
+ */
+function FullscreenPortal({ active, children }: { active: boolean; children: ReactNode }) {
+  if (!active) return <>{children}</>;
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex flex-col bg-background">{children}</div>,
+    document.body,
   );
 }
 
@@ -247,10 +261,11 @@ export default function ControleApprofondi() {
           )}
 
           {/* Matrice approfondie : valeurs C→I + écarts J→O explicites */}
+          <FullscreenPortal active={fullscreen}>
           <Card
             className={cn(
               'print-clean overflow-hidden',
-              fullscreen && 'fixed inset-0 z-[60] m-0 flex flex-col rounded-none border-0',
+              fullscreen && 'flex h-full w-full flex-col rounded-none border-0',
             )}
           >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b">
@@ -263,13 +278,13 @@ export default function ControleApprofondi() {
                 </Badge>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="no-print h-7 gap-1.5 px-2 text-xs"
+                  size="icon"
+                  className="no-print h-7 w-7"
                   onClick={() => setFullscreen((v) => !v)}
+                  aria-label={fullscreen ? 'Quitter le plein écran (Échap)' : 'Vue plein écran'}
                   title={fullscreen ? 'Quitter le plein écran (Échap)' : 'Vue plein écran'}
                 >
                   {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                  {fullscreen ? 'Quitter' : 'Plein écran'}
                 </Button>
               </div>
             </CardHeader>
@@ -316,10 +331,16 @@ export default function ControleApprofondi() {
                           className={cn(
                             vide && 'opacity-40',
                             ko && 'bg-destructive/10 hover:bg-destructive/20',
+                            l.arrondi && 'bg-amber-400/10 hover:bg-amber-400/20',
                           )}
                         >
                           <TableCell className="whitespace-nowrap">
-                            <span className={cn('font-semibold', ko ? 'text-destructive' : 'text-foreground')}>
+                            <span
+                              className={cn(
+                                'font-semibold',
+                                ko ? 'text-destructive' : l.arrondi ? 'text-amber-300' : 'text-foreground',
+                              )}
+                            >
                               {l.libelle || l.code}
                             </span>
                             <span className="ml-1.5 text-[10px] text-muted-foreground">{l.code}</span>
@@ -412,6 +433,7 @@ export default function ControleApprofondi() {
               </div>
             </CardContent>
           </Card>
+          </FullscreenPortal>
 
           {/* Légende colonnes C→I (montants des fichiers insérés) */}
           <div className="space-y-1.5">

@@ -141,6 +141,38 @@ export function fnum(x: unknown): number | undefined {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Normalise un en-tête de colonne : minuscules, sans accents, espaces compactés. */
+function normHeader(s: string): string {
+  return String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Repère l'INDICE de colonne dont l'en-tête (cherché dans les premières lignes)
+ * vérifie `pred`. Renvoie { row, col } ou null.
+ * On identifie TOUJOURS une colonne tableur par son intitulé, jamais par sa
+ * position : l'ordre des colonnes peut changer d'un export CIRIL à l'autre
+ * (cf. CORRECTIF bloc 50 / journal / bloc 81).
+ */
+function findCol(
+  rows: string[][],
+  pred: (h: string) => boolean,
+  maxHeaderRows = 15,
+): { row: number; col: number } | null {
+  const n = Math.min(rows.length, maxHeaderRows);
+  for (let r = 0; r < n; r++) {
+    const row = rows[r] ?? [];
+    for (let c = 0; c < row.length; c++) {
+      if (pred(normHeader(row[c] ?? ''))) return { row: r, col: c };
+    }
+  }
+  return null;
+}
+
 /* ----------------------------- Détection entité (cf. .py `entity`) ----------------------------- */
 
 export function detectEntite(text: string): EntiteKey | '?' {
@@ -197,18 +229,27 @@ export function xCtrl5(t: string): { total: number | null } {
 }
 
 /**
- * 6 — DSN bloc 81 : somme du montant de cotisation (col. 12 → idx 11) groupée par
- * Code OPS (col. 7 → idx 6) pour {RAFP, SRE, URSSAF, IRCANTEC, CNRACL}.
- * Les clés OPS valides sont celles de OPS2CODE (Ville couvre le sur-ensemble).
+ * 6 — DSN bloc 81 : somme de la colonne « 004 - Montant cotisation » groupée par
+ * « Code OPS » pour {RAFP, SRE, URSSAF, IRCANTEC, CNRACL}.
+ * Colonnes repérées par leur INTITULÉ (CORRECTIF), jamais par position ; repli
+ * sur les anciens indices (6 / 11) si les en-têtes sont introuvables.
  */
 export function xCtrl6(rows: string[][]): { ops: Record<string, number> } {
   const agg: Record<string, number> = {};
   const opsKeys = new Set(Object.keys(OPS2CODE.VILLE)); // RAFP, SRE, URSSAF, IRCANTEC, CNRACL
-  for (const r of rows) {
-    if (r.length <= 11) continue;
-    const ops = (r[6] ?? '').trim();
+  const opsHit = findCol(rows, (h) => h.includes('code ops'));
+  const montHit = findCol(
+    rows,
+    (h) => h.includes('montant cotisation') || (h.includes('004') && h.includes('cotisation')),
+  );
+  const opsCol = opsHit ? opsHit.col : 6;
+  const montCol = montHit ? montHit.col : 11;
+  const headerRow = Math.max(opsHit?.row ?? -1, montHit?.row ?? -1);
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const ops = (r[opsCol] ?? '').trim();
     if (!opsKeys.has(ops)) continue;
-    const v = fnum(r[11]);
+    const v = fnum(r[montCol]);
     if (v === undefined) continue;
     agg[ops] = round2((agg[ops] ?? 0) + v);
   }
@@ -216,17 +257,36 @@ export function xCtrl6(rows: string[][]): { ops: Record<string, number> } {
 }
 
 /**
- * 7 — DSN bloc 50 : total de la colonne « 009 - Montant PAS » (col. 7 → idx 6).
- * Comme le .py : on somme idx 6 des lignes dont la 1re cellule est numérique.
+ * 7 — DSN bloc 50 : total de la colonne « 009 - Montant PAS ».
+ * CORRECTIF (bug 1 — prioritaire) : la colonne était lue par sa POSITION (idx 6),
+ * d'où un total faux (5,40 € au lieu de 68 683,49 € en mai). On la repère
+ * désormais par son INTITULÉ, et on privilégie la ligne « Total Établissement » ;
+ * à défaut on somme la colonne sur les lignes agents. Repli idx 6 si en-tête absent.
  */
 export function xCtrl7(rows: string[][]): { total: number } {
-  let tot = 0;
-  for (const r of rows) {
-    if (r.length <= 6) continue;
-    if (!/^\d+$/.test((r[0] ?? '').trim())) continue;
-    tot += fnum(r[6]) ?? 0;
+  const hit = findCol(rows, (h) => h.includes('montant pas') || (h.includes('009') && h.includes('pas')));
+  const col = hit ? hit.col : 6;
+  const headerRow = hit ? hit.row : -1;
+
+  // 1) Ligne « Total Établissement » = valeur agrégée fiable.
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    if (normHeader((rows[i] ?? []).join(' ')).includes('total etablissement')) {
+      const v = fnum(rows[i][col]);
+      if (v !== undefined) return { total: round2(v) };
+    }
   }
-  return { total: round2(tot) };
+  // 2) Sinon, somme de la colonne sur les lignes agents (hors lignes de total).
+  let tot = 0;
+  let any = false;
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (normHeader(r.join(' ')).includes('total')) continue;
+    const v = fnum(r[col]);
+    if (v === undefined) continue;
+    tot += v;
+    any = true;
+  }
+  return { total: any ? round2(tot) : 0 };
 }
 
 /**
@@ -245,15 +305,22 @@ export function xCtrl8(t: string): {
 }
 
 /**
- * 9 — Journal RUB 1691/1694/1697 : somme de « Mt Sal rub » (col. 10 → idx 9, `jcol`)
- * des rubriques (col. 3 → idx 2) 1691/1694/1697, en VALEUR ABSOLUE.
+ * 9 — Journal RUB 1691/1694/1697 : somme de « Mt Sal rub » en VALEUR ABSOLUE.
+ * CORRECTIF (bug 2 — journal vide) : le montant était lu par sa POSITION (idx 9)
+ * et la rubrique en idx 2 ; un décalage de colonnes vidait le total. On repère
+ * maintenant « Mt Sal rub » par son INTITULÉ et on détecte la rubrique
+ * 1691/1694/1697 n'importe où sur la ligne. Repli idx 9 si l'en-tête est absent.
  */
-export function xCtrl9(rows: string[][], jcol = 9): { total: number } {
+export function xCtrl9(rows: string[][], jcolFallback = 9): { total: number } {
+  const hit = findCol(rows, (h) => h.includes('mt sal rub') || (h.includes('sal') && h.includes('rub')));
+  const col = hit ? hit.col : jcolFallback;
+  const headerRow = hit ? hit.row : -1;
+  const RUBS = new Set(['1691', '1694', '1697']);
   let tot = 0;
-  for (const r of rows) {
-    if (r.length <= jcol) continue;
-    const rub = (r[2] ?? '').trim();
-    if (rub === '1691' || rub === '1694' || rub === '1697') tot += fnum(r[jcol]) ?? 0;
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r.some((c) => RUBS.has((c ?? '').trim()))) continue;
+    tot += fnum(r[col]) ?? 0;
   }
   return { total: Math.abs(round2(tot)) };
 }
@@ -309,7 +376,13 @@ async function classify(file: File): Promise<Classified> {
     const ent = detectEntite(flat);
     if (flat.includes('Code OPS') || flat.includes('Cotisation individuelle'))
       return { entite: ent, ctrl: 6, data: xCtrl6(rows) };
-    if (/journal/i.test(namesJoined) || flat.includes('1691'))
+    if (
+      /journal/i.test(namesJoined) ||
+      flat.includes('1691') ||
+      flat.includes('1694') ||
+      flat.includes('1697') ||
+      /mt sal rub/i.test(flat)
+    )
       return { entite: ent, ctrl: 9, data: xCtrl9(rows, 9) };
     if (flat.includes('Code de cotisation') || flat.includes('Total 23'))
       return { entite: ent, ctrl: 4, data: null }; // contrôle 4 (DSN 22/23) : non porté côté valeurs
@@ -409,6 +482,8 @@ export async function aggregate(files: File[]): Promise<AggregateResult> {
     if (d8) {
       put(PAS_TIERS, 'E', d8.somme as number | null);
       if (d8.prelev != null) ed.totaux.E = d8.prelev as number;
+      // Régularisation bloc 56 (source secondaire ; la colonne D du PAS prime côté moteur).
+      if (d8.regul != null) ed.regulPas = Math.abs(d8.regul as number);
       if (d8.somme != null && d8.prelev != null) {
         const prelev = d8.prelev as number;
         const cts = round2(prelev - Math.trunc(prelev));

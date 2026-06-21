@@ -39,7 +39,7 @@ const ECARTS: { key: EcartKey; label: string }[] = [
   { key: 'J', label: 'J = C − D' },
   { key: 'K', label: 'K = G − C (URSSAF : G − (C+CSG))' },
   { key: 'L', label: 'L = G − D' },
-  { key: 'M', label: 'M = D + H − F (PAS)' },
+  { key: 'M', label: 'M = bloc 50 + régul 56 − journal (PAS)' },
   { key: 'N', label: 'N = I − C' },
   { key: 'O', label: 'O = I − D' },
 ];
@@ -200,11 +200,12 @@ export default function ControleApprofondi() {
             />
             <BouclageCard
               title="PAS"
-              hint="décompte = bloc 50 = journal"
+              hint="bloc 50 − régul 56 = journal = décompte"
               rows={[
-                { label: 'Décompte (E)', value: gv(P.pas, 'E') },
-                { label: 'Bloc 50 (H)', value: gv(P.pas, 'H') },
+                { label: 'Bloc 50 (H, avant régul)', value: gv(P.pas, 'H') },
+                ...(res.regulPas !== undefined ? [{ label: 'Régul bloc 56', value: res.regulPas }] : []),
                 { label: 'Journal (F)', value: gv(P.pas, 'F') },
+                { label: 'Décompte (E)', value: gv(P.pas, 'E') },
                 { label: 'Prélèvement (CIRIL)', value: res.totalPrelevement },
               ]}
               ecart={r('pas')?.ecart}

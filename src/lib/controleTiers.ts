@@ -96,6 +96,7 @@ export interface EntiteData {
   titrePasFlag?: boolean; // _TITRE_PAS = OUI / NON
   charges?: number; // CHARGES (= total CIRIL C − PAIE), dérivé si absent
   paie?: number; // PAIE (= I[342]), dérivé si absent
+  regulPas?: number; // régularisation bloc 56 du PAS (positive), si fournie par le décompte
 }
 
 export interface LigneResultat extends TierLigne {
@@ -125,6 +126,7 @@ export interface EntiteResultat {
   totalCharges?: number; // CHARGES = total CIRIL C − PAIE
   urssaf?: number; // cotisation URSSAF bloc 81 (G urssaf)
   pas?: number; // prélèvement PAS (F / H)
+  regulPas?: number; // régularisation bloc 56 (bloc 50 − régul = journal = décompte)
   bouclage?: number; // écart |PAIE + CHARGES − total CIRIL|
   pasEcartArrondi?: number; // centimes prélèvement − somme arrondie
   titreArrondi: boolean;
@@ -169,6 +171,20 @@ export function computeEntite(entite: EntiteKey, data: EntiteData): EntiteResult
   const byCode = new Map(lignesFixes.map((t) => [t.code, t]));
   const val = (code: string, col: ColKey): number | undefined => byCode.get(code)?.valeurs[col];
 
+  // --- Régularisation bloc 56 du PAS (CORRECTIF) ---
+  // Le bloc 50 (H) est AVANT régul ; le journal (F) et le décompte (E) sont APRÈS.
+  // Donc : bloc 50 + ajustement = journal = prélèvement. La régul apparaît soit en
+  // colonne D du PAS (déjà signée, ex. −59,02), soit sur le décompte (data.regulPas,
+  // positive → ajustement = −régul). `regulAdj` = ajustement signé à appliquer à H.
+  const pasDval = val(P.pas, 'D');
+  const regulDecompte = isNum(data.regulPas) ? data.regulPas : undefined;
+  const regulAdj: number | undefined =
+    isNum(pasDval) && Math.abs(pasDval) > TOLERANCE
+      ? pasDval
+      : regulDecompte !== undefined
+        ? -regulDecompte
+        : undefined;
+
   // ---- Écarts J..O + statut par tiers (BRIEF §6) ----
   const lignes: LigneResultat[] = lignesFixes.map((t) => {
     const v = t.valeurs;
@@ -186,10 +202,12 @@ export function computeEntite(entite: EntiteKey, data: EntiteData): EntiteResult
     // K = G − C ; L = G − D (URSSAF : base agrégée).
     if (isNum(v.G) && isNum(baseC)) ecarts.K = round2(v.G - baseC);
     if (isNum(v.G) && isNum(baseD)) ecarts.L = round2(v.G - baseD);
-    // M sur le PAS : D + H − F (D absent ⇒ H − F ≈ 0). Le titre d'arrondi vient de E/C, pas de M.
+    // M sur le PAS : bloc 50 (H) + régul bloc 56 = journal (F). La régul est portée
+    // par la colonne D (signée) ou, à défaut, par le décompte (regulDecompte).
     if (isPas && (isNum(v.H) || isNum(v.F))) {
-      const d = isNum(v.D) ? v.D : 0;
-      ecarts.M = round2(d + (v.H ?? 0) - (v.F ?? 0));
+      const dPart = isNum(v.D) ? v.D : 0;
+      const extra = isNum(v.D) ? 0 : regulDecompte !== undefined ? -regulDecompte : 0;
+      ecarts.M = round2(dPart + (v.H ?? 0) + extra - (v.F ?? 0));
     }
     // N = I − C ; O = I − D sur la Trésorerie (342).
     if (isTreso && isNum(v.I) && isNum(v.C)) ecarts.N = round2(v.I - v.C);
@@ -253,18 +271,36 @@ export function computeEntite(entite: EntiteKey, data: EntiteData): EntiteResult
   const tresoC = val(P.treso, 'C');
   if (isNum(paie) && isNum(tresoC)) r4.push(Math.abs(paie - tresoC));
 
-  // (5) PAS bloc50 (H) = journal (F) = décompte (E/prélèvement).
+  // (5) PAS : bloc 50 (H) + régul bloc 56 = journal (F) = décompte (E/prélèvement).
+  // Le bloc 50 est AVANT régul ; journal et décompte sont APRÈS. On n'exige donc
+  // JAMAIS « bloc 50 = journal » à l'identique (CORRECTIF) :
+  //   • régul connue (D ou décompte) ⇒ contrôle strict bloc 50 + régul = journal ;
+  //   • régul inconnue ⇒ l'écart bloc 50 ↔ journal est une régularisation (normal),
+  //     on ne contrôle que journal = prélèvement.
   const r5: number[] = [];
-  if (isNum(pasH) && isNum(pasF)) r5.push(Math.abs(pasH - pasF));
-  if (isNum(pasF) && isNum(totalPrelevement)) r5.push(Math.abs(pasF - totalPrelevement));
-  else if (isNum(pasH) && isNum(totalPrelevement)) r5.push(Math.abs(pasH - totalPrelevement));
+  const regulConnue = regulAdj !== undefined;
+  if (regulConnue) {
+    if (isNum(pasH) && isNum(pasF)) r5.push(Math.abs(pasH + (regulAdj as number) - pasF));
+    if (isNum(pasF) && isNum(totalPrelevement)) r5.push(Math.abs(pasF - totalPrelevement));
+    else if (isNum(pasH) && isNum(totalPrelevement))
+      r5.push(Math.abs(pasH + (regulAdj as number) - totalPrelevement));
+  } else {
+    if (isNum(pasF) && isNum(totalPrelevement)) r5.push(Math.abs(pasF - totalPrelevement));
+  }
 
   const reconciliations: Reconciliation[] = [
     reco('paie-charges', 'Paie + charges = budgétaire', 'bouclage de la génération budgétaire', r1),
     reco('budget-charges', 'Budgétaire = état charges + PAS', 'le PAS complète l’état des charges', r2),
     reco('urssaf', 'URSSAF concordant', '(C+CSG) = (D+CSG) = bloc 81', r3),
     reco('paies', 'Paies numéraires = budgétaire', 'tout payé par virement (tiers 342)', r4),
-    reco('pas', 'PAS : bloc 50 = journal = décompte', 'prélèvement à la source cohérent', r5),
+    reco(
+      'pas',
+      'PAS : bloc 50 − régul 56 = journal = décompte',
+      regulConnue
+        ? 'prélèvement à la source cohérent (régul bloc 56 appliquée)'
+        : 'écart bloc 50 ↔ journal = régularisation bloc 56 (normal)',
+      r5,
+    ),
   ];
 
   // Anomalies = écarts tiers KO (hors arrondi PAS) + réconciliations KO.
@@ -299,6 +335,10 @@ export function computeEntite(entite: EntiteKey, data: EntiteData): EntiteResult
     totalCharges: charges,
     urssaf: urssafG,
     pas: isNum(pasF) ? pasF : pasH,
+    regulPas:
+      isNum(pasDval) && Math.abs(pasDval) > TOLERANCE
+        ? round2(-pasDval)
+        : regulDecompte,
     bouclage,
     pasEcartArrondi,
     titreArrondi,

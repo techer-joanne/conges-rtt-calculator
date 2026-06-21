@@ -175,7 +175,7 @@ const ECARTS_META: { key: 'J' | 'K' | 'L' | 'M' | 'N' | 'O'; label: string }[] =
   { key: 'J', label: 'J = C − D (budgétaire vs état des charges)' },
   { key: 'K', label: 'K = G − C (bloc 81 vs budgétaire)' },
   { key: 'L', label: 'L = G − D (bloc 81 vs état des charges)' },
-  { key: 'M', label: 'M = D + H − F (PAS)' },
+  { key: 'M', label: 'M = bloc 50 + régul 56 − journal (PAS)' },
   { key: 'N', label: 'N = I − C (trésorerie vs budgétaire)' },
   { key: 'O', label: 'O = I − D (trésorerie vs état des charges)' },
 ];

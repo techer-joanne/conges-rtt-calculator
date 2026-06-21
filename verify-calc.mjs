@@ -26,6 +26,19 @@ await build({
   logLevel: 'silent',
 });
 const { computeEntite, parseCsv, parseMontant, DEMO_JUIN } = await import(pathToFileURL(outCt).href);
+
+// Extracteurs tableur (port de companion.py). pdfjs/xlsx restent externes : les
+// fonctions xCtrl6/7/9 testées ici sont pures (aucun import paresseux exécuté).
+const outExt = join(tmpdir(), `ctext-${Date.now()}.mjs`);
+await build({
+  entryPoints: ['src/lib/ctExtract.ts'],
+  outfile: outExt,
+  format: 'esm',
+  bundle: true,
+  external: ['pdfjs-dist', 'xlsx'],
+  logLevel: 'silent',
+});
+const { xCtrl6, xCtrl7, xCtrl9 } = await import(pathToFileURL(outExt).href);
 const ctVille = computeEntite('VILLE', DEMO_JUIN.VILLE);
 const ctCcas = computeEntite('CCAS', DEMO_JUIN.CCAS);
 // Pire écart absolu J..O sur l'ensemble des tiers (doit valoir 0 sur juin 2026).
@@ -45,6 +58,56 @@ const ctCsv = parseCsv(
     'CCAS,1467,URSSAF,C,8015.37,1\n',
 );
 const ctTierUrssaf = ctCsv.data.VILLE.tiers.find((t) => t.code === '11788');
+
+// --- CORRECTIF mai 2026 : régularisation bloc 56 du PAS (bloc 50 ≠ journal) ---
+// bloc 50 (H, AVANT régul) 68 683,49 − régul 59,02 = journal (F) = décompte (E) 68 624,47.
+const pasLigne = (res) => res.lignes.find((l) => l.code === '24574');
+const recoStatut = (res, id) => res.reconciliations.find((r) => r.id === id)?.statut;
+// A) régul portée par la colonne D du PAS (−59,02).
+const maiViaD = computeEntite('VILLE', {
+  tiers: [{ code: '24574', libelle: 'PAS / SIE', valeurs: { D: -59.02, F: 68624.47, H: 68683.49 } }],
+  totaux: { E: 68624.47 },
+});
+// B) régul fournie par le décompte (data.regulPas), sans colonne D.
+const maiViaDecompte = computeEntite('VILLE', {
+  tiers: [{ code: '24574', libelle: 'PAS / SIE', valeurs: { F: 68624.47, H: 68683.49 } }],
+  totaux: { E: 68624.47 },
+  regulPas: 59.02,
+});
+// C) régul inconnue : l'écart bloc 50 ↔ journal est une régul (normal), pas une anomalie.
+const maiSansRegul = computeEntite('VILLE', {
+  tiers: [{ code: '24574', libelle: 'PAS / SIE', valeurs: { F: 68624.47, H: 68683.49 } }],
+  totaux: { E: 68624.47 },
+});
+// D) vraie anomalie : journal ≠ prélèvement (le contrôle doit rester KO).
+const maiAnomalie = computeEntite('VILLE', {
+  tiers: [{ code: '24574', libelle: 'PAS / SIE', valeurs: { F: 68624.47, H: 68683.49 } }],
+  totaux: { E: 68000.0 },
+});
+
+// --- CORRECTIF : extraction tableur par INTITULÉ de colonne (et non par position) ---
+// Bloc 50 : « 009 - Montant PAS » placé en idx 4 (≠ ancien idx 6), avec « Total Établissement ».
+const bloc50Rows = [
+  ['Matricule', 'Nom', 'Prénom', 'Statut', '009 - Montant PAS', 'Net imposable', 'Divers'],
+  ['101', 'A', 'a', 'T', '12345.67', '2000.00', '1.80'],
+  ['102', 'B', 'b', 'T', '56337.82', '1500.00', '3.60'],
+  ['', 'Total Établissement', '', '', '68683.49', '', '5.40'],
+];
+// Journal : « Mt Sal rub » en idx 4 (≠ ancien idx 9) ; rubriques 1691/1694/1697.
+const journalRows = [
+  ['Rubrique', 'Libellé', 'Base', 'Mt Pat rub', 'Mt Sal rub', 'Sens'],
+  ['1691', 'PAS', '0', '0', '-40000.00', 'D'],
+  ['1694', 'PAS', '0', '0', '-20000.00', 'D'],
+  ['1697', 'PAS', '0', '0', '-8624.47', 'D'],
+  ['2100', 'Autre', '0', '0', '-999.99', 'D'],
+];
+// Bloc 81 : « Code OPS » idx 1, « 004 - Montant cotisation » idx 3 (≠ anciens idx 6/11).
+const bloc81Rows = [
+  ['Etab', 'Code OPS', 'Libellé', '004 - Montant cotisation', 'Autre'],
+  ['001', 'URSSAF', 'urssaf', '925561.32', 'x'],
+  ['001', 'CNRACL', 'cnracl', '380018.77', 'x'],
+  ['001', 'AUTRE', 'hors périmètre', '100.00', 'x'],
+];
 
 const round2 = (x) => Math.round(x * 100) / 100;
 const base = {
@@ -166,6 +229,23 @@ const checks = [
   ['CT CCAS · URSSAF bloc 81', round2(ctCcas.urssaf), 8015.37],
   ['CT CCAS · titre arrondi (0,08)', ctCcas.titreArrondi, true],
   ['CT CCAS · réco URSSAF', ctCcas.reconciliations.find((r) => r.id === 'urssaf').statut, 'ok'],
+  // CORRECTIF mai — régularisation bloc 56 du PAS
+  ['CT mai (D) · écart M PAS = 0', round2(pasLigne(maiViaD).ecarts.M), 0],
+  ['CT mai (D) · réco PAS ok', recoStatut(maiViaD, 'pas'), 'ok'],
+  ['CT mai (D) · régul exposée 59,02', round2(maiViaD.regulPas), 59.02],
+  ['CT mai (D) · 0 anomalie', maiViaD.nbAnomalies, 0],
+  ['CT mai (décompte) · écart M PAS = 0', round2(pasLigne(maiViaDecompte).ecarts.M), 0],
+  ['CT mai (décompte) · réco PAS ok', recoStatut(maiViaDecompte, 'pas'), 'ok'],
+  ['CT mai (sans régul) · réco PAS ok (régul normale)', recoStatut(maiSansRegul, 'pas'), 'ok'],
+  ['CT mai (sans régul) · 0 anomalie', maiSansRegul.nbAnomalies, 0],
+  ['CT mai (anomalie journal≠prélèvement) · réco PAS KO', recoStatut(maiAnomalie, 'pas'), 'ko'],
+  ['CT mai (anomalie) · statut KO', maiAnomalie.statut, 'ko'],
+  // CORRECTIF — extraction par intitulé de colonne (bloc 50 / journal / bloc 81)
+  ['CT extract bloc 50 (Total Établissement)', xCtrl7(bloc50Rows).total, 68683.49],
+  ['CT extract journal (Mt Sal rub, |somme|)', xCtrl9(journalRows).total, 68624.47],
+  ['CT extract bloc 81 · URSSAF', xCtrl6(bloc81Rows).ops.URSSAF, 925561.32],
+  ['CT extract bloc 81 · CNRACL', xCtrl6(bloc81Rows).ops.CNRACL, 380018.77],
+  ['CT extract bloc 81 · AUTRE exclu', xCtrl6(bloc81Rows).ops.AUTRE, undefined],
   // Import CSV (format compagnon)
   ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
   ['CT parseCsv · tier URSSAF colonne C', ctTierUrssaf.valeurs.C, 925561.32],

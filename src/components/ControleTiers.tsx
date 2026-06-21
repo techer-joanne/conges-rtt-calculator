@@ -23,6 +23,8 @@ import {
   parseCsv,
   toCsvModele,
   DEMO_JUIN,
+  PARAM,
+  TOLERANCE,
   type EntiteKey,
   type EntiteData,
   type EntiteResultat,
@@ -32,7 +34,6 @@ import { cn } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 const STORAGE_KEY = 'conges-rtt-trappes:ct:v4';
 const NUM = "font-['Space_Grotesk'] tabular-nums";
@@ -41,6 +42,9 @@ const ENTITE_META: Record<EntiteKey, { label: string; code: string; icon: typeof
   VILLE: { label: 'Ville', code: '001', icon: Building2 },
   CCAS: { label: 'CCAS', code: '004', icon: Landmark },
 };
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// Noms des 9 contrôles — utilisés par le journal de détection (après dépôt).
 const CTRL_NOMS: Record<number, string> = {
   1: 'Génération budgétaire',
   2: 'État des charges',
@@ -52,9 +56,6 @@ const CTRL_NOMS: Record<number, string> = {
   8: 'Décompte du PAS',
   9: 'Journal RUB 1691/94/97',
 };
-
-const fmtNum = (v?: number) =>
-  v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function StatutIcon({ statut, className }: { statut: Statut; className?: string }) {
   if (statut === 'ok') return <CheckCircle2 className={cn('text-success', className)} />;
@@ -170,16 +171,7 @@ function SyntheseCard({ res }: { res: EntiteResultat }) {
   );
 }
 
-/* --------------------------- Détail (matrice) --------------------------- */
-
-const ECARTS_META: { key: 'J' | 'K' | 'L' | 'M' | 'N' | 'O'; label: string }[] = [
-  { key: 'J', label: 'J — Écart génération budgétaire − état des charges (C − D)' },
-  { key: 'K', label: 'K — Écart bloc 81 − génération budgétaire (G − C)' },
-  { key: 'L', label: 'L — Écart bloc 81 − état des charges (G − D)' },
-  { key: 'M', label: 'M — Écart bloc 50 − génération budgétaire (tiers 24574 : D + H − F)' },
-  { key: 'N', label: 'N — Écart paie numéraire − génération budgétaire (tiers 342 : I − C)' },
-  { key: 'O', label: 'O — Écart paie numéraire − état des charges (tiers 342 : I − D)' },
-];
+/* --------------------------- Détail par contrôle (aperçu type Excel) --------------------------- */
 
 // La matrice détaillée (valeurs C→I + écarts J→O) vit désormais dans l'onglet
 // « Contrôle approfondi » (ControleApprofondi.tsx) pour garder cet onglet épuré.
@@ -226,20 +218,35 @@ async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
   return filtered.length ? filtered : Array.from(dt.files).filter((f) => EXT_OK.test(f.name));
 }
 
-/* --------------------- Traçabilité & contrôle des données --------------------- */
+/* --------------------- Détail par contrôle (aperçu type Excel « Détail Ville/CCAS ») --------------------- */
 
-function DiagnosticCard({ res, log }: { res: EntiteResultat; log: LogLine[] }) {
+/** Ligne d'un bloc clé/valeur (PAS, vérifications globales). */
+function KV({ label, value, accent }: { label: string; value?: number; accent?: 'amber' }) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 px-3 py-1.5 text-xs',
+        accent === 'amber' && 'bg-amber-400/10',
+      )}
+    >
+      <span className={cn(accent === 'amber' ? 'font-semibold text-amber-300' : 'text-muted-foreground')}>{label}</span>
+      <span className={cn('font-bold', NUM, accent === 'amber' ? 'text-amber-300' : 'text-foreground')}>
+        {value === undefined ? '—' : fmtEuro(value)}
+      </span>
+    </div>
+  );
+}
+
+function DetailEntite({ res }: { res: EntiteResultat }) {
   const meta = ENTITE_META[res.entite];
   const Icon = meta.icon;
-  const lignesEnt = log.filter((l) => l.entite === res.entite && l.controle > 0);
-  const fichierParCtrl = new Map<number, string>();
-  // Le dernier dépôt pour un contrôle l'emporte (cumul fichier par fichier).
-  lignesEnt.forEach((l) => fichierParCtrl.set(l.controle, l.name));
-  const found = fichierParCtrl.size;
-  const manquants = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => !fichierParCtrl.has(n));
-  const anomReco = res.reconciliations.filter((r) => r.statut === 'ko');
-  const anomTiers = res.lignes.filter((l) => l.statut === 'ko');
-  const parCsv = lignesEnt.length === 0 && res.renseigne;
+  const P = PARAM[res.entite];
+  const v = (code: string, col: 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I') =>
+    res.lignes.find((l) => l.code === code)?.valeurs[col];
+  const reco = (id: string): Statut => res.reconciliations.find((r) => r.id === id)?.statut ?? 'na';
+
+  // Le PAS a son propre bloc → on l'exclut du tableau par tiers.
+  const lignes = res.lignes.filter((l) => l.code !== P.pas);
 
   return (
     <Card className="print-clean overflow-hidden">
@@ -249,112 +256,114 @@ function DiagnosticCard({ res, log }: { res: EntiteResultat; log: LogLine[] }) {
             <Icon className="h-4 w-4" />
           </span>
           <CardTitle className="text-sm font-bold uppercase tracking-wide text-secondary-foreground">
-            Traçabilité — {meta.label}
+            Détail — {meta.label}
           </CardTitle>
         </div>
-        {!parCsv && (
-          <Badge variant={found === 9 ? 'success' : found === 0 ? 'secondary' : 'outline'}>{found}/9 contrôles</Badge>
-        )}
+        <Badge variant={res.statut === 'ok' ? 'success' : res.statut === 'ko' ? 'destructive' : 'secondary'}>
+          {res.nbAnomalies} anomalie(s)
+        </Badge>
       </CardHeader>
-      <CardContent className="space-y-3 p-4 text-xs">
+      <CardContent className="space-y-4 p-4">
         {!res.renseigne ? (
-          <p className="italic text-muted-foreground">Aucune donnée pour {meta.label}.</p>
-        ) : parCsv ? (
-          <p className="italic text-muted-foreground">
-            Données importées par CSV — la traçabilité fichier par contrôle n'est disponible qu'en lecture directe des
-            éditions CIRIL.
-          </p>
+          <p className="text-sm italic text-muted-foreground">Aucune donnée pour {meta.label}.</p>
         ) : (
           <>
-            {/* Couverture des 9 contrôles (quel fichier pour quoi) */}
-            <div>
-              <p className="mb-1.5 font-semibold text-secondary-foreground">Couverture des contrôles</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
-                  const file = fichierParCtrl.get(n);
-                  return (
-                    <Tooltip key={n}>
-                      <TooltipTrigger asChild>
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-semibold',
-                            file
-                              ? 'border-success/30 bg-success/10 text-success'
-                              : 'border-amber-300/30 bg-amber-400/10 text-amber-300',
-                          )}
-                        >
-                          {file ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />} {n}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="font-semibold">{CTRL_NOMS[n]}</p>
-                        <p className="text-muted-foreground">{file ?? 'fichier manquant'}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-              {manquants.length > 0 && (
-                <p className="mt-1.5 text-amber-300">
-                  Manquant(s) : {manquants.map((n) => `${n} (${CTRL_NOMS[n]})`).join(' · ')}
-                </p>
-              )}
-            </div>
-
-            {/* Fichiers lus → contrôle détecté */}
-            <div>
-              <p className="mb-1 font-semibold text-secondary-foreground">Fichiers lus</p>
-              <ul className="space-y-0.5">
-                {lignesEnt.map((l, i) => (
-                  <li key={i} className="flex items-center gap-1.5 text-muted-foreground">
-                    <FileText className="h-3 w-3 shrink-0 text-primary" />
-                    <span className="truncate text-foreground">{l.name}</span>
-                    <span className="shrink-0">→ contrôle {l.controle} ({CTRL_NOMS[l.controle]})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Anomalies à vérifier */}
-            <div>
-              <p className="mb-1 font-semibold text-secondary-foreground">Anomalies</p>
-              {anomReco.length === 0 && anomTiers.length === 0 ? (
-                <p className="flex items-center gap-1.5 text-success">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Aucune anomalie — toutes les sources concordent.
-                </p>
-              ) : (
-                <ul className="space-y-1">
-                  {anomReco.map((r) => (
-                    <li key={r.id} className="flex items-start gap-1.5 text-destructive">
-                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>
-                        {r.label} — écart {fmtEuro(r.ecart ?? 0)}
-                      </span>
-                    </li>
-                  ))}
-                  {anomTiers.map((l) => {
-                    const detail = ECARTS_META.filter((m) => Math.abs(l.ecarts[m.key] ?? 0) > 0.01)
-                      .map((m) => `${m.key} ${fmtNum(l.ecarts[m.key])}`)
-                      .join(' · ');
+            {/* Montants par contrôle (1 · 2 · 6 + écart 1−2) */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="py-1.5 pr-2 text-left font-semibold">Tiers</th>
+                    <th className="py-1.5 px-2 text-right font-semibold">1 · Génér. budgétaire</th>
+                    <th className="py-1.5 px-2 text-right font-semibold">2 · État des charges</th>
+                    <th className="py-1.5 px-2 text-right font-semibold">6 · DSN bloc 81</th>
+                    <th className="py-1.5 px-2 text-right font-semibold">Écart 1−2</th>
+                    <th className="py-1.5 pl-2 text-center font-semibold">✓</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lignes.map((l) => {
+                    const c = v(l.code, 'C');
+                    const d = v(l.code, 'D');
+                    const g = v(l.code, 'G');
+                    const ecart = round2((c ?? 0) - (d ?? 0));
+                    const ok = Math.abs(ecart) <= TOLERANCE;
                     return (
-                      <li key={l.code} className="flex items-start gap-1.5 text-destructive">
-                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span>
-                          {l.libelle || l.code} <span className="text-muted-foreground">({l.code})</span> — {detail}
-                        </span>
-                      </li>
+                      <tr key={l.code} className={cn('border-b border-border/40', !ok && 'bg-destructive/10')}>
+                        <td className="py-1.5 pr-2">
+                          <span className={cn('font-medium', ok ? 'text-foreground' : 'text-destructive')}>
+                            {l.libelle || l.code}
+                          </span>
+                        </td>
+                        <td className={cn('py-1.5 px-2 text-right text-foreground', NUM)}>{fmtEuro(c ?? 0)}</td>
+                        <td className={cn('py-1.5 px-2 text-right text-foreground', NUM)}>{fmtEuro(d ?? 0)}</td>
+                        <td className={cn('py-1.5 px-2 text-right', NUM, g === undefined ? 'text-muted-foreground/40' : 'text-foreground')}>
+                          {g === undefined ? '—' : fmtEuro(g)}
+                        </td>
+                        <td className={cn('py-1.5 px-2 text-right', NUM, ok ? 'text-muted-foreground' : 'font-bold text-destructive')}>
+                          {fmtEuro(ecart)}
+                        </td>
+                        <td className="py-1.5 pl-2 text-center">
+                          {ok ? (
+                            <CheckCircle2 className="mx-auto h-3.5 w-3.5 text-success" />
+                          ) : (
+                            <span className="font-bold text-destructive">!</span>
+                          )}
+                        </td>
+                      </tr>
                     );
                   })}
-                </ul>
-              )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] italic text-muted-foreground">
+              Bloc 81 URSSAF = URSSAF + URSSAF CSG regroupés. « — » = pas de bloc 81 pour ce tiers.
+            </p>
+
+            {/* Prélèvement à la source (PAS) — contrôles 1 · 7 · 8 · 9 */}
+            <div className="overflow-hidden rounded-md border border-border">
+              <p className="border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-secondary-foreground">
+                Prélèvement à la source (PAS) — contrôles 1 · 7 · 8 · 9
+              </p>
+              <div className="divide-y divide-border/40">
+                <KV label="Génération budgétaire (sans cts)" value={v(P.pas, 'C')} />
+                <KV label="Décompte — somme mise en paiement" value={v(P.pas, 'E')} />
+                <KV label="Bloc 50 — montant PAS (contrôle 7)" value={v(P.pas, 'H')} />
+                <KV label="Journal 1691/1694/1697 (contrôle 9)" value={v(P.pas, 'F')} />
+                <KV label="Prélèvement effectué (avec cts)" value={res.totalPrelevement} />
+                <KV label="Arrondi du PAS → titre à émettre" value={res.pasEcartArrondi} accent="amber" />
+              </div>
             </div>
 
-            {res.titreArrondi && (
-              <p className="flex items-start gap-1.5 text-amber-300">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Titre d'arrondi PAS à émettre ({fmtEuro(res.pasEcartArrondi ?? 0)}) — normal, pas une anomalie.
+            {/* Vérifications globales — contrôles 3 · 5 + bouclage */}
+            <div className="overflow-hidden rounded-md border border-border">
+              <p className="border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-secondary-foreground">
+                Vérifications globales — contrôles 3 · 5 + bouclage
               </p>
-            )}
+              <div className="divide-y divide-border/40">
+                {[
+                  { label: 'URSSAF détaillé (contrôle 3) = budgétaire + CSG', value: res.urssaf, st: reco('urssaf') },
+                  { label: 'Paies numéraires (contrôle 5) = budgétaire', value: res.totalPaie, st: reco('paies') },
+                  { label: 'PAIE + CHARGES = total fichier CIRIL', value: res.totalCiril, st: reco('paie-charges') },
+                ].map((r) => (
+                  <div key={r.label} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
+                    <span className="text-muted-foreground">{r.label}</span>
+                    <span className="flex items-center gap-2">
+                      <span className={cn('font-bold text-foreground', NUM)}>
+                        {r.value === undefined ? '—' : fmtEuro(r.value)}
+                      </span>
+                      {r.st === 'ok' ? (
+                        <Badge variant="success">✓ OK</Badge>
+                      ) : r.st === 'ko' ? (
+                        <Badge variant="destructive">écart</Badge>
+                      ) : (
+                        <Badge variant="secondary">—</Badge>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </>
         )}
       </CardContent>
@@ -614,14 +623,14 @@ export default function ControleTiers() {
         </div>
       </div>
 
-      {/* Traçabilité & contrôle des données */}
+      {/* Détail par contrôle (aperçu type tableur) */}
       <div>
         <h3 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-secondary-foreground">
-          <FileSearch className="h-4 w-4 text-primary" /> Traçabilité &amp; contrôle des données
+          <FileSearch className="h-4 w-4 text-primary" /> Détail par contrôle
         </h3>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {results.map((r) => (
-            <DiagnosticCard key={r.entite} res={r} log={log} />
+            <DetailEntite key={r.entite} res={r} />
           ))}
         </div>
       </div>

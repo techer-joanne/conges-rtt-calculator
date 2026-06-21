@@ -41,6 +41,30 @@ await build({
   logLevel: 'silent',
 });
 const { xCtrl6, xCtrl7, xCtrl9 } = await import(pathToFileURL(outExt).href);
+
+// Moteur « Comparatif NET par train ».
+const outCmp = join(tmpdir(), `cmp-${Date.now()}.mjs`);
+await build({ entryPoints: ['src/lib/comparatif.ts'], outfile: outCmp, format: 'esm', bundle: true, logLevel: 'silent' });
+const { buildComparatif, applyAffectations, memoriserNouveaux, parseCorrespRows, DEMO_EXTRACTION } = await import(
+  pathToFileURL(outCmp).href,
+);
+const cmp = buildComparatif(DEMO_EXTRACTION); // sans CORRESP
+const cmpAgent = (mat) => cmp.agents.find((a) => a.matricule === mat);
+const cmpTrain = (lib) => cmp.trains.find((t) => t.lib === lib);
+// Avec CORRESP : le nouveau (999999) est rattaché à Train CCAS.
+const cmpCorr = buildComparatif(DEMO_EXTRACTION, { '999999': { no: 7, lib: 'Train CCAS' } });
+// Affectation manuelle puis mémorisation.
+const cmpAff = applyAffectations(cmp, { '999999': 'Train Yasmine' });
+// CORRESP contient déjà les 2 agents connus ⇒ seul le nouveau (999999) est ajouté.
+const correspMem = { '174569': { no: 18, lib: 'Train Alex' }, '174880': { no: 7, lib: 'Train CCAS' } };
+const nbMem = memoriserNouveaux(correspMem, cmpAff.agents);
+// Parsing CORRESP (feuille Matricule | Train | Lib).
+const correspParsed = parseCorrespRows([
+  ['Matricule', 'Train (n°)', 'Lib. Train'],
+  ['174611', '15', 'Train Ville Ruth'],
+  ['', '', ''],
+  ['174704', '17', 'Train Florian'],
+]);
 const ctVille = computeEntite('VILLE', DEMO_JUIN.VILLE);
 const ctCcas = computeEntite('CCAS', DEMO_JUIN.CCAS);
 // Pire écart absolu J..O sur l'ensemble des tiers (doit valoir 0 sur juin 2026).
@@ -282,6 +306,24 @@ const checks = [
   ['CT cumul · nouveau tiers PAS (H)', cumulPas.valeurs.H, 50],
   ['CT cumul · totaux fusionnés (C)', cumulMerge.totaux.C, 100],
   ['CT cumul · totaux fusionnés (E)', cumulMerge.totaux.E, 50],
+  // Comparatif NET par train
+  ['CMP · mois M1', cmp.mois.m1, '05-2026'],
+  ['CMP · mois M2', cmp.mois.m2, '06-2026'],
+  ['CMP · colonne Train détectée', cmp.hasTrainCol, true],
+  ['CMP · 3 agents', cmp.agents.length, 3],
+  ['CMP · écart Alex (2150,50−2100)', round2(cmpAgent('174569').ecart), 50.5],
+  ['CMP · écart CCAS (1450−1500)', round2(cmpAgent('174880').ecart), -50],
+  ['CMP · nouveau → À AFFECTER', cmpAgent('999999').trainLib, 'À AFFECTER'],
+  ['CMP · 1 à affecter', cmp.nbAffecter, 1],
+  ['CMP · écart total (50,50−50)', round2(cmp.totalEcart), 0.5],
+  ['CMP · train Alex 1 agent', cmpTrain('Train Alex').agents.length, 1],
+  ['CMP · CORRESP rattache le nouveau', cmpCorr.nbAffecter, 0],
+  ['CMP · CORRESP → Train CCAS', cmpCorr.agents.find((a) => a.matricule === '999999').trainLib, 'Train CCAS'],
+  ['CMP · affectation manuelle (0 restant)', cmpAff.nbAffecter, 0],
+  ['CMP · mémoriser 1 nouveau', nbMem, 1],
+  ['CMP · mémorisé = Train Yasmine', correspMem['999999'].lib, 'Train Yasmine'],
+  ['CMP · parse CORRESP (2 lignes)', Object.keys(correspParsed).length, 2],
+  ['CMP · parse CORRESP libellé', correspParsed['174611'].lib, 'Train Ville Ruth'],
   // Import CSV (format compagnon)
   ['CT parseMontant « 925 561,32 »', parseMontant('925 561,32'), 925561.32],
   ['CT parseCsv · tier URSSAF colonne C', ctTierUrssaf.valeurs.C, 925561.32],

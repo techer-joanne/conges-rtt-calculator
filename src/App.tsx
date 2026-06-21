@@ -12,6 +12,7 @@ import Depart from './components/Depart';
 import Annualisation from './components/Annualisation';
 import ControleTiers from './components/ControleTiers';
 import ControleApprofondi from './components/ControleApprofondi';
+import Comparatif from './components/Comparatif';
 import Bareme from './components/Bareme';
 import Notice from './components/Notice';
 import {
@@ -32,6 +33,7 @@ const SECTION_TITLES: Record<TabId, string> = {
   annualisation: 'Annualisation',
   'controle-tiers': 'Contrôle Tiers',
   'controle-approfondi': 'Contrôle approfondi',
+  comparatif: 'Comparatif NET',
   bareme: 'Barème',
   notice: 'Notice',
 };
@@ -151,6 +153,7 @@ export default function App() {
             )}
             {tab === 'controle-tiers' && <ControleTiers />}
             {tab === 'controle-approfondi' && <ControleApprofondi />}
+            {tab === 'comparatif' && <Comparatif />}
             {tab === 'bareme' && <Bareme currentSocle={inputs.socle} currentQuotite={inputs.quotite} />}
             {tab === 'notice' && <Notice />}
           </main>

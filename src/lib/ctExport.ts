@@ -9,54 +9,30 @@
  * aucun classeur modèle embarqué (dépôt public).
  */
 import { PARAM, TOLERANCE, type ColKey, type EcartKey, type EntiteKey, type EntiteResultat } from './controleTiers';
+import {
+  AMBER_F,
+  AZUR,
+  type Built,
+  type Cell,
+  NAVY,
+  PAGE,
+  RED_F,
+  SECTION_F,
+  ST,
+  ZEBRA1,
+  ZEBRA2,
+  amberInk,
+  downloadXlsx,
+  loadXLSX,
+  num,
+  redInk,
+  sheetFromBuilt,
+  status,
+  txt,
+} from './xlsxStyle';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const EUR = '#,##0.00" €"';
-
-/* ----------------------------- Palette ----------------------------- */
-const NAVY = '16294D';
-const AZUR = '4A86C5';
-const WHITE = 'FFFFFF';
-const ZEBRA1 = 'EAF1FA'; // bleu très clair
-const ZEBRA2 = 'DCE7F4'; // bleu clair (alternance)
-const SECTION_F = 'C7D7EC'; // bleu moyen clair (sections / totaux)
-const PAGE = 'E3ECF7'; // fond des séparateurs / notes
-const GREEN_T = '15803D';
-const GREEN_F = 'C6F0CE';
-const AMBER_T = '92400E';
-const AMBER_F = 'FCE9B6';
-const RED_T = 'B91C1C';
-const RED_F = 'F8C9CC';
-
-type Style = Record<string, unknown>;
-const thin = { style: 'thin', color: { rgb: 'B8C6DD' } };
-const BORDER = { top: thin, bottom: thin, left: thin, right: thin };
-
-const ST: Record<string, Style> = {
-  title: { font: { bold: true, sz: 14, color: { rgb: WHITE } }, fill: { fgColor: { rgb: NAVY } }, alignment: { vertical: 'center' } },
-  subtitle: { font: { italic: true, sz: 10, color: { rgb: 'CFE0F4' } }, fill: { fgColor: { rgb: NAVY } } },
-  header: { font: { bold: true, sz: 10, color: { rgb: WHITE } }, fill: { fgColor: { rgb: AZUR } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } },
-  section: { font: { bold: true, sz: 11, color: { rgb: NAVY } }, fill: { fgColor: { rgb: SECTION_F } } },
-  label: { font: { sz: 10, color: { rgb: '1E293B' } }, alignment: { horizontal: 'left' } },
-  num: { font: { sz: 10, color: { rgb: '1E293B' } }, alignment: { horizontal: 'right' } },
-  note: { font: { italic: true, sz: 9, color: { rgb: '475569' } } },
-};
-const status = (kind: 'ok' | 'ko' | 'amber' | 'na'): Style => {
-  if (kind === 'ok') return { font: { bold: true, color: { rgb: GREEN_T } }, fill: { fgColor: { rgb: GREEN_F } }, alignment: { horizontal: 'center' } };
-  if (kind === 'ko') return { font: { bold: true, color: { rgb: RED_T } }, fill: { fgColor: { rgb: RED_F } }, alignment: { horizontal: 'center' } };
-  if (kind === 'amber') return { font: { bold: true, color: { rgb: AMBER_T } }, fill: { fgColor: { rgb: AMBER_F } }, alignment: { horizontal: 'center' } };
-  return { ...ST.label, alignment: { horizontal: 'center' } };
-};
-const redInk = (s: Style): Style => ({ ...s, font: { ...(s.font as object), bold: true, color: { rgb: RED_T } } });
-const amberInk = (s: Style): Style => ({ ...s, font: { ...(s.font as object), bold: true, color: { rgb: AMBER_T } } });
-
-/* ----------------------------- Modèle ----------------------------- */
-type Cell = { v: string | number; t: 's' | 'n'; z?: string; s?: Style } | null;
-type Row = { cells: Cell[]; bg: string; border?: boolean };
-type Built = { rows: Row[]; cols: number[]; merges: [number, number, number][] };
-
-const txt = (v: string | number, s?: Style): Cell => ({ v, t: 's', s });
-const num = (v: number | undefined, s: Style = ST.num): Cell => (v === undefined ? txt('', s) : { v, t: 'n', z: EUR, s });
+type Row = Built['rows'][number];
 
 /* ----------------------------- Détail entité ----------------------------- */
 function detailRows(res: EntiteResultat, titre: string): Built {
@@ -210,50 +186,20 @@ function rawRows(res: EntiteResultat): Built {
 
 /* ----------------------------- Assemblage & téléchargement ----------------------------- */
 export async function buildControleXlsxBytes(results: EntiteResultat[]): Promise<Uint8Array> {
-  const mod = await import('xlsx-js-style');
-  const XLSX: typeof import('xlsx-js-style') = (mod as { default?: typeof import('xlsx-js-style') }).default ?? mod;
+  const XLSX = await loadXLSX();
   const byEnt = Object.fromEntries(results.map((r) => [r.entite, r])) as Record<EntiteKey, EntiteResultat>;
-
-  const makeSheet = ({ rows, cols, merges }: Built) => {
-    const ncols = cols.length;
-    const ws: Record<string, unknown> = {};
-    rows.forEach((row, r) => {
-      for (let c = 0; c < ncols; c++) {
-        const cell = row.cells[c] ?? null;
-        const base: Style = cell?.s ? { ...cell.s } : {};
-        if (!base.fill) base.fill = { fgColor: { rgb: row.bg } };
-        if (row.border !== false) base.border = BORDER;
-        const addr = XLSX.utils.encode_cell({ r, c });
-        ws[addr] = cell
-          ? { v: cell.v, t: cell.t, ...(cell.z ? { z: cell.z } : {}), s: base }
-          : { v: '', t: 's', s: base };
-      }
-    });
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length - 1, 0), c: Math.max(ncols - 1, 0) } });
-    ws['!cols'] = cols.map((wch) => ({ wch }));
-    if (merges.length) ws['!merges'] = merges.map(([r, c0, c1]) => ({ s: { r, c: c0 }, e: { r, c: c1 } }));
-    return ws as import('xlsx-js-style').WorkSheet;
-  };
+  const sheet = (b: Built) => sheetFromBuilt(XLSX, b);
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(syntheseRows(byEnt)), 'Synthèse');
-  if (byEnt.VILLE) XLSX.utils.book_append_sheet(wb, makeSheet(detailRows(byEnt.VILLE, 'DÉTAIL VILLE')), 'Détail Ville');
-  if (byEnt.CCAS) XLSX.utils.book_append_sheet(wb, makeSheet(detailRows(byEnt.CCAS, 'DÉTAIL CCAS')), 'Détail CCAS');
-  if (byEnt.VILLE) XLSX.utils.book_append_sheet(wb, makeSheet(rawRows(byEnt.VILLE)), 'VILLE');
-  if (byEnt.CCAS) XLSX.utils.book_append_sheet(wb, makeSheet(rawRows(byEnt.CCAS)), 'CCAS');
+  XLSX.utils.book_append_sheet(wb, sheet(syntheseRows(byEnt)), 'Synthèse');
+  if (byEnt.VILLE) XLSX.utils.book_append_sheet(wb, sheet(detailRows(byEnt.VILLE, 'DÉTAIL VILLE')), 'Détail Ville');
+  if (byEnt.CCAS) XLSX.utils.book_append_sheet(wb, sheet(detailRows(byEnt.CCAS, 'DÉTAIL CCAS')), 'Détail CCAS');
+  if (byEnt.VILLE) XLSX.utils.book_append_sheet(wb, sheet(rawRows(byEnt.VILLE)), 'VILLE');
+  if (byEnt.CCAS) XLSX.utils.book_append_sheet(wb, sheet(rawRows(byEnt.CCAS)), 'CCAS');
 
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
 }
 
 export async function exportControleXlsx(results: EntiteResultat[]): Promise<void> {
-  const out = await buildControleXlsxBytes(results);
-  const blob = new Blob([out as unknown as BlobPart], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'controle_tiers.xlsx';
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadXlsx(await buildControleXlsxBytes(results), 'controle_tiers.xlsx');
 }

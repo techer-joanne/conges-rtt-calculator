@@ -482,8 +482,10 @@ export async function aggregate(files: File[]): Promise<AggregateResult> {
     if (d8) {
       put(PAS_TIERS, 'E', d8.somme as number | null);
       if (d8.prelev != null) ed.totaux.E = d8.prelev as number;
-      // Régularisation bloc 56 (source secondaire ; la colonne D du PAS prime côté moteur).
-      if (d8.regul != null) ed.regulPas = Math.abs(d8.regul as number);
+      // NB : on NE déduit PAS la régul bloc 56 du décompte — le montant « régul »
+      // extrait du « Total Etablissement » s'est révélé non fiable (faux écart sur
+      // CCAS). La régul est lue côté moteur en colonne D du PAS ; sinon l'écart
+      // bloc 50 ↔ journal est classé « régularisation bloc 56 » (normal).
       if (d8.somme != null && d8.prelev != null) {
         const prelev = d8.prelev as number;
         const cts = round2(prelev - Math.trunc(prelev));

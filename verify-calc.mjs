@@ -84,6 +84,12 @@ const maiAnomalie = computeEntite('VILLE', {
   tiers: [{ code: '24574', libelle: 'PAS / SIE', valeurs: { F: 68624.47, H: 68683.49 } }],
   totaux: { E: 68000.0 },
 });
+// E) CCAS réel : décompte présent (totaux.E), aucune régul, bloc 50 = journal.
+//    Ne doit PAS créer de fausse anomalie (cf. retour terrain mai CCAS).
+const maiCcasOk = computeEntite('CCAS', {
+  tiers: [{ code: '24574', libelle: 'PAS / SIE', valeurs: { F: 5000.08, H: 5000.08 } }],
+  totaux: { E: 5000.08 },
+});
 
 // --- CORRECTIF : extraction tableur par INTITULÉ de colonne (et non par position) ---
 // Bloc 50 : « 009 - Montant PAS » placé en idx 4 (≠ ancien idx 6), avec « Total Établissement ».
@@ -240,6 +246,8 @@ const checks = [
   ['CT mai (sans régul) · 0 anomalie', maiSansRegul.nbAnomalies, 0],
   ['CT mai (anomalie journal≠prélèvement) · réco PAS KO', recoStatut(maiAnomalie, 'pas'), 'ko'],
   ['CT mai (anomalie) · statut KO', maiAnomalie.statut, 'ko'],
+  ['CT CCAS réel (bloc 50 = journal, décompte) · réco PAS ok', recoStatut(maiCcasOk, 'pas'), 'ok'],
+  ['CT CCAS réel · 0 anomalie', maiCcasOk.nbAnomalies, 0],
   // CORRECTIF — extraction par intitulé de colonne (bloc 50 / journal / bloc 81)
   ['CT extract bloc 50 (Total Établissement)', xCtrl7(bloc50Rows).total, 68683.49],
   ['CT extract journal (Mt Sal rub, |somme|)', xCtrl9(journalRows).total, 68624.47],
